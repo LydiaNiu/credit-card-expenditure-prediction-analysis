@@ -79,22 +79,6 @@ for (var in names(cat_summary)) {
 ```
 
 ```{r}
-# Univariate plots
-# Numeric: histogram + boxplot
-for (col in names(num_vars)) {
-  p1 <- ggplot(train_data, aes(x = .data[[col]])) +
-    geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-    theme_minimal() +
-    ggtitle(paste("Histogram of", col))
-  print(p1)
-
-  p2 <- ggplot(train_data, aes(y = .data[[col]])) +
-    geom_boxplot(fill = "lightgreen") +
-    theme_minimal() +
-    ggtitle(paste("Boxplot of", col))
-  print(p2)
-}
-
 # Categorical: bar chart
 for (col in names(cat_vars)) {
   p <- ggplot(train_data, aes(x = .data[[col]])) +
@@ -103,23 +87,6 @@ for (col in names(cat_vars)) {
     ggtitle(paste("Bar chart of", col))
   print(p)
 }
-
-# Bivariate: scatterplots of expenditure vs each numeric variable
-for (col in setdiff(names(num_vars), "expenditure")) {
-  p <- ggplot(train_data, aes(x = .data[[col]], y = expenditure)) +
-    geom_point(alpha = 0.6, color = "darkblue") +
-    geom_smooth(method = "lm", se = FALSE, color = "red") +
-    theme_minimal() +
-    ggtitle(paste("Expenditure vs", col))
-  print(p)
-}
-
-# Correlation matrix (for numeric variables)
-corr_matrix <- cor(num_vars, use = "pairwise.complete.obs")
-corrplot(corr_matrix, method = "color", type = "upper", tl.cex = 0.8)
-
-# Optional: scatterplot matrix
-ggpairs(num_vars)
 ```
 
 ```{r}
@@ -153,6 +120,13 @@ for (col in names(num_vars)) {
   grid.arrange(p1, p2, ncol = 2, top = paste("Univariate Plots for", col))
 }
 
+```
+```{r}
+# Correlation matrix (for numeric variables)
+corr_matrix <- cor(num_vars, use = "pairwise.complete.obs")
+corrplot(corr_matrix, method = "color", type = "upper", tl.cex = 0.8)
+
+ggpairs(num_vars)
 ```
 
 
