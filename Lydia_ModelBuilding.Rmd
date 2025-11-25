@@ -1,0 +1,153 @@
+---
+title: "model2"
+output: html_document
+date: "2025-11-21"
+---
+
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+
+set.seed(7)
+train_index <- sample(1:nrow(credit_data), size = nrow(credit_data) * 0.7)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+# head(train_data) #923 rows
+# head(test_data) #396 rows
+```
+
+# **Step 1 — Fit Your First-Order Model (Individual Work)**
+```{r}
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+```
+
+# **Step 2 — Explore Curvature: Higher-Order Polynomial Terms (Individual Work)**
+```{r}
+# create a reusable function to plot residual vs fitted plot
+plot_diagnostics <- function(model, title = NULL) {
+  res <- residuals(model)
+  fit <- fitted(model)
+
+  # --- Residuals vs Fitted (Left Panel) ---
+  par(fig = c(0, 0.48, 0, 1), mar = c(5, 5, 4, 2)) 
+  plot(fit, res,
+       xlab = "Fitted Values",
+       ylab = "Residuals",
+       main = ifelse(is.null(title), "Residuals vs Fitted", paste(title, "- Residuals vs Fitted")))
+  abline(h = 0, col = "red", lwd = 2)
+
+  # --- Q-Q Plot (Right Panel) ---
+  par(fig = c(0.52, 1, 0, 1), mar = c(5, 5, 4, 2), new = TRUE)
+  qqnorm(res,
+         main = ifelse(is.null(title), "Normal Q-Q Plot", paste(title, "- Q-Q Plot")))
+  qqline(res, col = "red", lwd = 2)
+
+  # reset graphics so next models plot normally
+  par(fig = c(0,1,0,1))
+}
+
+
+
+plot_diagnostics(model1)
+# the residual scatter plot shows a cone shape with high variance. This means that the residuals exponentially increases as the values increase, indicates there is curvature exist in model1. A transformation is required.
+```
+
+```{r}
+# through previous work, we noticed that all the data are right skewed
+# since the curvature exist, add polynomial terms
+# center the predictors
+train_data$dependents_c <- train_data$dependents - mean(train_data$dependents)
+train_data$active_c <- train_data$active - mean(train_data$active)
+train_data$months_c <- train_data$months - mean(train_data$months)
+train_data$share_c <- train_data$share - mean(train_data$share)
+train_data$income_c <- train_data$income - mean(train_data$income)
+# check the new center columns
+# head(train_data)
+
+# fit the second model with all centered terms and a higher-order polynomial term, month.
+# tried income^2, active^2, log(expenditure + 1), 
+
+model2 <- lm(expenditure ~ income_c + share_c + dependents_c + I(months_c^2) + active_c, data = train_data)
+summary(model2)
+# rse: 95.95 , adj r^2: 0.8397
+
+model3 <- lm(expenditure ~ sqrt(income_c) + share_c + dependents_c + I(months_c^2) + active_c, data = train_data)
+summary(model3)
+# rse: 72.21 , adj r^2: 0.9381.
+
+cat("Adjusted R^2: \nModel 1: ", summary(model1)$adj.r.squared, "\nModel 2: ", summary(model2)$adj.r.squared, "\nModel 3: ", summary(model3)$adj.r.squared)
+cat("\nVIF: \nModel 1: ")
+print(car::vif(model1), type = "predictor")
+cat ("\nModel 2: ")
+print(car::vif(model2), type = "predictor")
+cat("\nModel 3: ")
+print(car::vif(model3), type = "predictor")
+
+# residual plot
+# par(mrow(1,1))
+plot_diagnostics(model1, "Model 1")
+plot_diagnostics(model2, "Model 2")
+plot_diagnostics(model3, "Model 3")
+
+plot_diagnostics
+```
+
+adding month^2 is not significant, but adding square root of income in addition with month^2 is significant. The model3 has the best performance among all three models, highest Adjusted R^2, lowest VIF, and a more varied residual vs fitted plot.
+
+# **Step 3 — Explore Interaction Terms (Individual Work)**
+```{r}
+#fit model: month * dependents 
+model4 <- lm(expenditure ~ income + share + dependents * months + active, data = train_data)
+model5 <- lm(expenditure ~ income + share * months + dependents + active, data = train_data)
+model6 <- lm(expenditure ~ income * months + share + dependents + active, data = train_data)
+model7 <- lm(expenditure ~ income + share + dependents + active* months, data = train_data)
+
+# summary(model4)
+# summary(model5)
+# summary(model6)
+# summary(model7)
+
+cat("Adjusted R^2: \nModel 4: ", summary(model4)$adj.r.squared, 
+    "\nModel 5: ", summary(model5)$adj.r.squared, 
+    "\nModel 6: ", summary(model6)$adj.r.squared, 
+    "\nModel 7: ", summary(model7)$adj.r.squared)
+
+# using the car::vif(model) gives the warning of "there are higher-order terms (interactions) in this model
+# consider setting type = 'predictor'; see ?vif"
+cat("\nVIFs:\n")
+
+cat("\nModel 4:\n")
+print(car::vif(model4, type = "predictor"))
+
+cat("\nModel 5:\n")
+print(car::vif(model5, type = "predictor"))
+
+cat("\nModel 6:\n")
+print(car::vif(model6, type = "predictor"))
+
+cat("\nModel 7:\n")
+print(car::vif(model7, type = "predictor"))
+
+```
+
+# **Step 4 — Checkpoint: Determine Whether Screening Is Needed**
+```{r}
+
+```
+
+# **Step 5 — Evaluate Need for Transformations (Individual Work)**
+```{r}
+
+```
+
+# **Step 6 — Build Your Refined Model (Individual Work)**
+```{r}
+
+```
+
+# **Step 7- Evaluate predictive performance on the test set (Individual Work)**
+```{r}
+
+```
+
