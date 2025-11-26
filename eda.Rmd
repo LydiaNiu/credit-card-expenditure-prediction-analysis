@@ -3,12 +3,130 @@ title: "eda"
 output: pdf_document
 date: "2025-11-06"
 ---
+```{r}
+library(tidyverse)
+library(GGally)
+library(corrplot)
+```
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+
+set.seed(7)
+train_index <- sample(1:nrow(credit_data), size = nrow(credit_data) * 0.7)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+train_data #923 rows
+test_data #396 rows
+```
+```{r}
+# Separate numeric and categorical variables
+num_vars <- train_data %>% select(where(is.numeric))
+cat_vars <- train_data %>% select(where(~!is.numeric(.)))
 ```
 
 ```{r}
-print("testing")
+#numeric
+num_summary <- num_vars %>%
+  summarise(across(everything(), list(
+    mean   = ~mean(.,   na.rm = TRUE),
+    median = ~median(., na.rm = TRUE),
+    sd     = ~sd(.,     na.rm = TRUE),
+    Q1     = ~quantile(., 0.25, na.rm = TRUE),
+    Q3     = ~quantile(., 0.75, na.rm = TRUE),
+    min    = ~min(.,    na.rm = TRUE),
+    max    = ~max(.,    na.rm = TRUE)
+  )))
+
+# The columns will look like: var1_mean, var1_median, ...
+# Convert to long form with pivot_longer and separate the variable name and stat
+num_summary_long <- num_summary %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = c("Variable", "Stat"),
+    names_sep = "_",
+    values_to = "Value"
+  ) %>%
+  pivot_wider(names_from = Stat, values_from = Value)
+
+print(num_summary_long)
+
 ```
+
+```{r}
+# Clean categorical summary (fixed)
+cat_summary <- lapply(cat_vars, function(x) {
+  tbl <- table(x, useNA = "ifany")
+  pct <- round(prop.table(tbl) * 100, 2)
+  df <- data.frame(
+    Category = names(tbl),
+    Frequency = as.numeric(tbl),
+    Percentage = as.numeric(pct)
+  )
+  return(df)
+})
+
+names(cat_summary) <- names(cat_vars)
+
+# View each table clearly
+for (var in names(cat_summary)) {
+  cat("\n---", var, "---\n")
+  print(cat_summary[[var]])
+}
+
+```
+
+```{r}
+# Categorical: bar chart
+for (col in names(cat_vars)) {
+  p <- ggplot(train_data, aes(x = .data[[col]])) +
+    geom_bar(fill = "orange") +
+    theme_minimal() +
+    ggtitle(paste("Bar chart of", col))
+  print(p)
+}
+```
+
+```{r}
+# Bivariate: scatterplots of expenditure vs each numeric variable
+for (col in setdiff(names(num_vars), "expenditure")) {
+  p <- ggplot(train_data, aes(x = .data[[col]], y = expenditure)) +
+    geom_point(alpha = 0.6, color = "darkblue") +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    theme_minimal() +
+    ggtitle(paste("Expenditure vs", col))
+  print(p)
+}
+```
+```{r}
+# Load required package
+library(gridExtra)
+
+# Univariate plots: show histogram and boxplot side by side (2 columns per row)
+for (col in names(num_vars)) {
+  p1 <- ggplot(train_data, aes(x = .data[[col]])) +
+    geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+    theme_minimal() +
+    ggtitle(paste("Histogram of", col))
+
+  p2 <- ggplot(train_data, aes(y = .data[[col]])) +
+    geom_boxplot(fill = "lightgreen") +
+    theme_minimal() +
+    ggtitle(paste("Boxplot of", col))
+
+  # Arrange the two plots side by side
+  grid.arrange(p1, p2, ncol = 2, top = paste("Univariate Plots for", col))
+}
+
+```
+```{r}
+# Correlation matrix (for numeric variables)
+corr_matrix <- cor(num_vars, use = "pairwise.complete.obs")
+corrplot(corr_matrix, method = "color", type = "upper", tl.cex = 0.8)
+
+ggpairs(num_vars)
+```
+
 

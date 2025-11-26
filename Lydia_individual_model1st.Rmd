@@ -1,0 +1,82 @@
+---
+title: "Lydia Niu 2nd checkpoint - modele1"
+output: html_document
+date: "2025-11-14"
+---
+
+```{r}
+library(car)
+credit_data <- read.csv("credit_card_data.csv")
+
+set.seed(7)
+train_index <- sample(1:nrow(credit_data), size = nrow(credit_data) * 0.7)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+head(train_data) #923 rows
+head(test_data) #396 rows
+```
+
+#### Model
+
+```{r}
+# Fit a linear regression model with multiple predictors, use the traning data
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+```
+
+#### Check Multicollinearity
+
+```{r}
+# check the VIF
+car::vif(model1)
+```
+
+none of the predictors have the VIF greater than 5, indicates there are no multicollinearity exist. We are allowed to keep using this model with the predictors we chose.
+
+#### Residual analysis
+
+```{r}
+# Extract residuals and fitted values
+residuals_m1 <- residuals(model1)
+fitted_m1 <- fitted(model1)
+
+# 1. Residual vs Fitted Plot
+plot(fitted_m1, residuals_m1,
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted Values")
+abline(h = 0, col = "red", lwd = 2)
+
+# 2. Normal Q-Q Plot
+qqnorm(residuals_m1,
+       main = "Normal Q-Q Plot of Residuals")
+qqline(residuals_m1, col = "red", lwd = 2)
+
+# 3. Histogram of Residuals
+hist(residuals_m1,
+     breaks = 30,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     col = "lightblue",
+     border = "white")
+
+# 4. Check for Outliers & Influential Points
+# Outlier test
+outlierTest(model1)
+```
+
+#### RMSE and R\^2
+
+```{r}
+pred_test <- predict(model1, newdata = test_data)
+RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+cat("The testing RMSE is: ", RMSE, "\n")
+
+cat("The adjusted R^2 of Lydia's model is: ", summary(model1)$adj.r.squared, "\n")
+cat("The R^2 of Lydia's model is: ", summary(model1)$r.squared)
+```
+
+overfitting: adj r\^2 lower than the normal R. much larger validation error underfitting: r low, r = adj r, nothing is explained/captured by the predictors
+
+**Analysis:** Based on the results, the model does not show strong signs of overfitting or underfitting, but a sign of slightly overfitting. The adjusted R² (0.839) and R² (0.840) are almost identical, which means the included predictors are contributing meaningful explanatory power and the model isn’t being artificially inflated by unnecessary variables.

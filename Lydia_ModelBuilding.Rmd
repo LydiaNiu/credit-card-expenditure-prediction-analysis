@@ -1,0 +1,342 @@
+---
+title: "model2"
+output: html_document
+date: "2025-11-21"
+---
+
+```{r}
+library(MASS)
+library(car)
+```
+
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+
+set.seed(7)
+train_index <- sample(1:nrow(credit_data), size = nrow(credit_data) * 0.7)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+head(train_data) #923 rows
+# head(test_data) #396 rows
+```
+
+# **Step 1 — Fit Your First-Order Model (Individual Work)**
+
+```{r}
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+```
+
+# **Step 2 — Explore Curvature: Higher-Order Polynomial Terms (Individual Work)**
+
+Evaluate whether the predictor exist curvature through residual plots.
+
+```{r}
+res <- residuals(model1)
+
+# expenditure
+plot(train_data$expenditure, res,
+     xlab = "income",
+     ylab = "Residuals",
+     main = "Residuals vs expenditure")
+abline(h = 0, col = "red")
+
+# income
+plot(train_data$income, res,
+     xlab = "income",
+     ylab = "Residuals",
+     main = "Residuals vs income")
+abline(h = 0, col = "red")
+
+# share
+plot(train_data$share, res,
+     xlab = "share",
+     ylab = "Residuals",
+     main = "Residuals vs share")
+abline(h = 0, col = "red")
+
+# dependents
+plot(train_data$dependents, res,
+     xlab = "dependents",
+     ylab = "Residuals",
+     main = "Residuals vs dependents")
+abline(h = 0, col = "red")
+
+# months
+plot(train_data$months, res,
+     xlab = "months",
+     ylab = "Residuals",
+     main = "Residuals vs months")
+abline(h = 0, col = "red")
+
+# active
+plot(train_data$active, res,
+     xlab = "active",
+     ylab = "Residuals",
+     main = "Residuals vs active")
+abline(h = 0, col = "red")
+```
+
+From the performance of residual plots, there are curvature existed in the variable income, share, and month.
+
+```{r}
+# create a reusable function to plot residual vs fitted plot
+plot_diagnostics <- function(model, title = NULL) {
+  res <- residuals(model)
+  fit <- fitted(model)
+  
+  # Residuals vs Fitted
+  plot(fit, res,
+       xlab = "Fitted Values",
+       ylab = "Residuals",
+       main = ifelse(is.null(title), 
+                     "Residuals vs Fitted", 
+                     paste(title, "- Residuals vs Fitted")))
+  abline(h = 0, col = "red", lwd = 2)
+  
+  # Q-Q Plot
+  qqnorm(res,
+         main = ifelse(is.null(title), 
+                       "Normal Q-Q Plot", 
+                       paste(title, "- Q-Q Plot")))
+  qqline(res, col = "red", lwd = 2)
+}
+
+plot(model1, which=1) # residuals vs fitted
+qqnorm(resid(model1)); qqline(resid(model1)) # normality
+
+# the residual scatter plot shows a cone shape with high variance. This means that the residuals exponentially increases as the values increase. There is also a broad trend curve exists. A transformation is required.
+```
+
+```{r}
+# Polynomial terms
+train_data$months_c    <- train_data$months - mean(train_data$months)
+train_data$months_c2   <- train_data$months_c^2
+
+train_data$income2 <- train_data$income^2
+train_data$share2  <- train_data$share^2
+train_data$months2 <- train_data$months^2
+```
+
+```{r}
+# income + share
+model2 <- lm(expenditure ~ income + income2 + share  + share2  + months + dependents + active, data = train_data)
+summary(model2)
+# adj r^2: 0.8547
+
+# all quadratic terms
+model3 <- lm(expenditure ~ income + income2 + share  + share2  + months + months2 + dependents + active, data = train_data)
+summary(model3)
+# adj r^2: 0.8546
+
+# transformation
+# model4 <- lm(expenditure ~ log_income + log_share + dependents + months_c + months_c2 + active, data = train_data)
+# summary(model4)
+# # adj r^2: 0.8523
+# 
+# # all sqrt (including polynomial months on sqrt scale)
+# model5 <- lm(expenditure ~ log_income + log_share + dependents + sqrt_months_c + sqrt_months_c2 + active, data = train_data)
+# summary(model5)
+# # adj r^2: 0.8524
+
+```
+
+```{r}
+# compare the adjusted R^2 for the models that performed better
+cat("Adjusted R^2: \nModel 1: ", summary(model1)$adj.r.squared, "\nModel 2: ", summary(model2)$adj.r.squared, 
+    "\nModel 3: ", summary(model3)$adj.r.squared)
+
+# compare the VIF for multicollinearity
+cat("\nVIF: \nModel 1: ")
+print(vif(model1), type = "predictor")
+cat ("\nModel 2: ")
+print(vif(model2), type = "predictor")
+cat("\nModel 3: ")
+print(vif(model3), type = "predictor")
+
+# residual plot
+plot(model1, which=1) # residuals vs fitted
+qqnorm(resid(model1)); qqline(resid(model1)) # normality
+
+plot(model2, which=1) # residuals vs fitted
+qqnorm(resid(model2)); qqline(resid(model2)) # normality
+
+plot(model3, which=1) # residuals vs fitted
+qqnorm(resid(model3)); qqline(resid(model3)) # normality
+```
+
+After checking for curvature in the predictors, we found evidence of nonlinear patterns in income, share, and months, so we explored adding quadratic terms instead of applying transformations at this stage. Among all fitted curvature models, the two best-performing ones were: (1) the model including quadratic terms for income and share, and (2) the model including quadratic terms for income, share, and months. Although the residual-versus-fitted and Q–Q plots did not show substantial visual improvement over the baseline model (only a little bit), these two models achieved the highest adjusted R\^2 values among all curvature combinations and surpassed the baseline model (model 1). Therefore, these two curvature-enhanced models are retained for further consideration in the next modeling stage.
+
+# **Step 3 — Explore Interaction Terms (Individual Work)**
+
+Each member is focusing on different predictors, and I was assigned to explore more about the potentials of variable $months$.
+
+```{r}
+#fit model with different combination of interaction with months
+model4 <- lm(expenditure ~ income + share + dependents * months + active, data = train_data)
+model5 <- lm(expenditure ~ income + share * months + dependents + active, data = train_data)
+model6 <- lm(expenditure ~ income * months + share + dependents + active, data = train_data)
+model7 <- lm(expenditure ~ income + share + dependents + active * months, data = train_data)
+
+cat("Adjusted R^2: \nModel 4: ", summary(model4)$adj.r.squared, 
+    "\nModel 5: ", summary(model5)$adj.r.squared, 
+    "\nModel 6: ", summary(model6)$adj.r.squared, 
+    "\nModel 7: ", summary(model7)$adj.r.squared)
+```
+
+```{r}
+# Use F test to see whether the interaction term is statistically significant
+anova(model1, model4)
+anova(model1, model5)
+anova(model1, model6)
+anova(model1, model7)
+```
+
+```{r}
+# plot the residual vs fitted model and qq plot to see any improvements
+plot(model4, which=1) # residuals vs fitted
+qqnorm(resid(model4)); qqline(resid(model4)) # normality
+
+plot(model5, which=1) # residuals vs fitted
+qqnorm(resid(model5)); qqline(resid(model5)) # normality
+
+plot(model6, which=1) # residuals vs fitted
+qqnorm(resid(model6)); qqline(resid(model6)) # normality
+
+plot(model7, which=1) # residuals vs fitted
+qqnorm(resid(model7)); qqline(resid(model7)) # normality
+
+```
+
+Based on the F-tests comparing models 4–7 against model 1, models 4 and 7 do not show significant improvement, while models 5 and 6 are statistically significant. Although the residual diagnostics did not show noticeable changes across these models, model 6 achieves the highest adjusted R\^2 among models 4–7 and provides a statistically significant improvement over model 1. Therefore, we retain the interaction term $income * months$ for further consideration. [specify income \* months]
+
+# **Step 4 — Checkpoint: Determine Whether Screening Is Needed**
+
+```{r}
+n <- nrow(train_data)
+n
+```
+
+Because the train dataset contains 923 observations, the sample size is more than sufficient to support models that include quadratic and interaction terms. When evaluating multicollinearity using VIF across all expanded models so far, none of the predictors, including quadratic and interaction terms, exceeded a VIF of 5. This indicates that the models are stable, and there is no evidence of harmful multicollinearity. Since (1) the sample size is large, (2) the expanded models do not overload the data, and (3) multicollinearity remains at acceptable levels, variable screening is not required at this stage. You can safely proceed to the next modeling step using the full set of first-order predictors along with the candidate curvature and interaction terms identified earlier.
+
+# **Step 5 — Evaluate Need for Transformations (Individual Work)**
+
+```{r}
+# Log transforms
+train_data$log_income      <- log(train_data$income)
+train_data$log_share       <- log(train_data$share + 1)     # +1 if share has zeros
+train_data$log_months      <- log(train_data$months)
+
+# Sqrt transforms
+train_data$sqrt_income <- sqrt(train_data$income)
+train_data$sqrt_share  <- sqrt(train_data$share)
+train_data$sqrt_months <- sqrt(train_data$months)
+
+# Centering log transforms
+train_data$log_income_c      <- train_data$log_income - mean(train_data$log_income)
+train_data$log_income_c2     <- train_data$log_income_c^2
+
+train_data$log_share_c       <- train_data$log_share - mean(train_data$log_share)
+train_data$log_share_c2      <- train_data$log_share_c^2
+
+train_data$log_months_c      <- train_data$log_months - mean(train_data$log_months)
+train_data$log_months_c2     <- train_data$log_months_c^2
+
+# Centering sqrt transforms
+train_data$sqrt_income_c     <- train_data$sqrt_income - mean(train_data$sqrt_income)
+train_data$sqrt_income_c2    <- train_data$sqrt_income_c^2
+
+train_data$sqrt_share_c      <- train_data$sqrt_share - mean(train_data$sqrt_share)
+train_data$sqrt_share_c2     <- train_data$sqrt_share_c^2
+
+train_data$sqrt_months_c     <- train_data$sqrt_months - mean(train_data$sqrt_months)
+train_data$sqrt_months_c2    <- train_data$sqrt_months_c^2
+```
+
+Based on previous analyses from last two weeks, we found that all variables that we are using, including both predictors and the response, are right-skewed. Furthermore, in part 2, we identified four variables, which are expenditure, income, share, and months, that exhibit curvature, violating the assumptions of normality and constant variance. Therefore, it is necessary to perform a transformation. Regarding Y, the expenditure, I will use Box-Cox transformation to assess whether transforming the response variable can improve these assumptions. Regarding X, I will explore potential transformations (such as log or square-root) for the three predictor variables.
+
+```{r}
+# box cox requires variables to be all positive, so we use log expenditure squared
+bc <- boxcox(lm((expenditure+1) ~ income + share + dependents + months + active, data=train_data))
+lambda <- bc$x[which.max(bc$y)]
+lambda # 0.5050505
+```
+
+To address the issue of negative values existed in expenditure (Y), I applied Box-Cox to expenditure + 1 and found that the optimal lambda is 0.505. This result indicates that a square-root transformation of the response variable is most appropriate for stabilizing variance and improving the normality of residuals.
+
+```{r}
+train_data$sqrt_expenditure <- (train_data$expenditure + 1)^0.505
+
+model_trans <- lm(sqrt_expenditure ~ income + share + dependents + months + active, data=train_data)
+
+plot(model_trans, which=1, main="Residuals vs Fitted (Transformed Y)")
+qqnorm(resid(model_trans)); qqline(resid(model_trans), main="QQ Plot (Transformed Y)")
+```
+
+The plot diagnosises show that transform Y makes the situation worse. there is still a clear curvature exist in the residual vs fitted plot, and even more deviations in the QQ plot.
+
+# **Step 6 — Build Your Refined Model (Individual Work)**
+
+-   First-order terms: expenditure \~ income + share + dependents + months + active
+
+-   Centered polynomial terms: combination of $income^2 + share^2 + share^2$
+
+-   Interaction terms: $income \*months$
+
+-   Transformed predictors: $share$
+
+-   transformed response: $sqrt(expenditure)$
+
+```{r}
+# Interaction term, use the centered variable
+train_data$income_c      <- train_data$income - mean(train_data$income)
+train_data$share_c      <- train_data$share - mean(train_data$share)
+train_data$income_months_share <- train_data$income_c * train_data$months * train_data$share_c
+# Centered polynomial terms
+train_data$income_c2   <- train_data$income_c^2
+train_data$log_share_c2 <- train_data$log_share_c^2
+
+refined_model3 <- lm(sqrt_expenditure ~ income_c + income_c2 + sqrt_share_c + log_share_c2 +
+                     months + income_months_share + dependents + active,
+                     data = train_data) # adjusted R^2: 0.971
+summary(refined_model3)
+cat("The final refined model:\nAdjusted R^2: ", summary(refined_model3)$adj.r.square)
+cat("\nVIF: \n")
+vif(refined_model3)      
+# Check residuals
+plot(refined_model3, which=1) # residuals vs fitted
+qqnorm(resid(refined_model3)); qqline(resid(refined_model3)) # normality
+```
+
+# **Step 7- Evaluate predictive performance on the test set (Individual Work)**
+
+```{r}
+test_data$income_c <- test_data$income - mean(train_data$income)
+test_data$share_c <- test_data$share - mean(train_data$income)
+test_data$income_months_share <- test_data$income_c * test_data$months * test_data$share_c
+# Centered polynomial terms
+test_data$income_c2 <- test_data$income_c^2
+
+test_data$log_share <- log(test_data$share + 1)     # +1 if share has zeros
+test_data$log_share_c <- test_data$log_share - mean(train_data$log_share)
+
+test_data$log_share_c2 <- test_data$log_share_c^2
+
+test_data$sqrt_share <- sqrt(test_data$share)
+test_data$sqrt_share_c <- test_data$sqrt_share - mean(train_data$sqrt_share)
+
+pred_test <- predict(refined_model3, newdata = test_data)
+RMSE_pred <- sqrt(mean((test_data$expenditure - pred_test)^2))
+RMSE_pred
+
+final_model <- lm(expenditure ~ income + sqrt(share) + dependents + months + active + share:dependents,
+                  data = train_data)
+pred_test <- predict(final_model, newdata = test_data)
+# RMSE: square root of mean squared errors
+RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+RMSE
+```
+The RMSE of the final model on the test data is 389.095, which is extremely large. This suggests that, despite the very high adjusted R^2 of 0.971 on the training data, the model is likely overfitting. It has learned not only the underlying patterns but also the noise in the training set, resulting in high variance and poor generalization to unseen data. In contrast, the RMSE of the final model on the training data is 181.257, which is much smaller, confirming that the model fits the training set very well but fails to perform reliably on new data.
+
+Conclusion: The large discrepancy between training and testing RMSE highlights overfitting. While the model captures almost all variation in the training data, it does not generalize well, indicating the need for a simpler model or regularization to improve predictive performance.
