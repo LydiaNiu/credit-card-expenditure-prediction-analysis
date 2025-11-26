@@ -214,7 +214,8 @@ Based on the F-tests comparing models 4–7 against model 1, models 4 and 7 do n
 # **Step 4 — Checkpoint: Determine Whether Screening Is Needed**
 
 ```{r}
-nrow(train_data)
+n <- nrow(train_data)
+n
 ```
 
 Because the train dataset contains 923 observations, the sample size is more than sufficient to support models that include quadratic and interaction terms. When evaluating multicollinearity using VIF across all expanded models so far, none of the predictors, including quadratic and interaction terms, exceeded a VIF of 5. This indicates that the models are stable, and there is no evidence of harmful multicollinearity. Since (1) the sample size is large, (2) the expanded models do not overload the data, and (3) multicollinearity remains at acceptable levels, variable screening is not required at this stage. You can safely proceed to the next modeling step using the full set of first-order predictors along with the candidate curvature and interaction terms identified earlier.
@@ -241,9 +242,6 @@ train_data$log_share_c2      <- train_data$log_share_c^2
 
 train_data$log_months_c      <- train_data$log_months - mean(train_data$log_months)
 train_data$log_months_c2     <- train_data$log_months_c^2
-
-train_data$log_expenditure_c <- train_data$log_expenditure - mean(train_data$log_expenditure)
-train_data$log_expenditure_c2<- train_data$log_expenditure_c^2
 
 # Centering sqrt transforms
 train_data$sqrt_income_c     <- train_data$sqrt_income - mean(train_data$sqrt_income)
@@ -339,4 +337,6 @@ pred_test <- predict(final_model, newdata = test_data)
 RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
 RMSE
 ```
-The RMSE of the final model using the test data to fit is 389.095, which is extremely large. This result indicates that the great performance of the final model, which the adjusted R^2 is 0.971, could possibly be a overfitting situation. The refined model learned all the noises and overly accomandate to the data, eventually caused the high variance. However, the RMSE of the final model using the training data [help]
+The RMSE of the final model on the test data is 389.095, which is extremely large. This suggests that, despite the very high adjusted R^2 of 0.971 on the training data, the model is likely overfitting. It has learned not only the underlying patterns but also the noise in the training set, resulting in high variance and poor generalization to unseen data. In contrast, the RMSE of the final model on the training data is 181.257, which is much smaller, confirming that the model fits the training set very well but fails to perform reliably on new data.
+
+Conclusion: The large discrepancy between training and testing RMSE highlights overfitting. While the model captures almost all variation in the training data, it does not generalize well, indicating the need for a simpler model or regularization to improve predictive performance.
