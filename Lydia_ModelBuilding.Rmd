@@ -329,6 +329,14 @@ test_data$sqrt_share <- sqrt(test_data$share)
 test_data$sqrt_share_c <- test_data$sqrt_share - mean(train_data$sqrt_share)
 
 pred_test <- predict(refined_model3, newdata = test_data)
+RMSE_pred <- sqrt(mean((test_data$expenditure - pred_test)^2))
+RMSE_pred
+
+final_model <- lm(expenditure ~ income + sqrt(share) + dependents + months + active + share:dependents,
+                  data = train_data)
+pred_test <- predict(final_model, newdata = test_data)
+# RMSE: square root of mean squared errors
 RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
 RMSE
 ```
+The RMSE of the final model using the test data to fit is 389.095, which is extremely large. This result indicates that the great performance of the final model, which the adjusted R^2 is 0.971, could possibly be a overfitting situation. The refined model learned all the noises and overly accomandate to the data, eventually caused the high variance. However, the RMSE of the final model using the training data [help]
