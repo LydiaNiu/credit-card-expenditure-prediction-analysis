@@ -1,0 +1,188 @@
+---
+title: "Shreya Mohan Week 8"
+author: "Shreya Mohan"
+date: "2025-11-21"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(tidyverse)
+library(ggplot2)
+library(corrplot)
+library(polycor)
+library(car)
+```
+
+### Data Import
+```{r, echo = FALSE}
+credit_data <- read.csv("credit_card_data.csv")
+head(credit_data)
+set.seed(862336550)
+n <- nrow(credit_data)
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+```
+
+### Step 1 — Fit Your First-Order Model (Individual Work)
+```{r}
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+res <- residuals(model1)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+plot(model1, which = 1)
+plot(model1, which = 2)
+```
+
+### Step 2:
+#### Examine scatterplots & residual vs fitted plots for curvature
+```{r}
+# Scatterplots for each quantitative predictor
+ggplot(train_data, aes(x = income, y = expenditure)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  ggtitle("Expenditure vs Income")
+
+ggplot(train_data, aes(x = share, y = expenditure)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  ggtitle("Expenditure vs Share")
+
+ggplot(train_data, aes(x = dependents, y = expenditure)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  ggtitle("Expenditure vs Dependents")
+
+ggplot(train_data, aes(x = months, y = expenditure)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  ggtitle("Expenditure vs Months Active")
+
+ggplot(train_data, aes(x = active, y = expenditure)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  ggtitle("Expenditure vs Active")
+```
+
+#### If curvature is present, add polynomial terms
+```{r}
+model_polynomial <- lm(expenditure ~ income + I(income^2) + share + sqrt(share) + dependents + months + active, data = train_data)
+summary(model_polynomial)
+
+plot(model_polynomial, which = 1)
+plot(model_polynomial, which = 2)
+vif(model_polynomial)
+```
+
+#### Center predictors before creating polynomial terms:
+```{r}
+share_c <- train_data$share - mean(train_data$share)
+income_c <- train_data$income - mean(train_data$income)
+active_c <- train_data$active - mean(train_data$active)
+dependents_c <- train_data$dependents - mean(train_data$dependents)
+months_c <- train_data$months - mean(train_data$months)
+share_sqrt <- sqrt(train_data$share)
+share_sqrt_c <- share_sqrt - mean(share_sqrt)
+```
+
+#### Refit the model and evaluate:
+```{r}
+model_poly_centered <- lm(expenditure ~ income_c + I(income_c^2) + share_c + share_sqrt_c + dependents_c + months_c + active_c, data = train_data)
+
+summary(model_poly_centered)
+plot(model_poly_centered, which = 1)
+plot(model_poly_centered, which = 2) 
+
+vif(model_poly_centered)
+```
+Adding income^2 was not significant, however adding square root of share was significant. This could be seen as when graphed the share variable showed a square root curvature. The adjusted $R^2$ increases very slightly. Centering the predictors did help with the multicollinearty as well. 
+
+#### Step 3 — Explore Interaction Terms (Individual Work), Fit models including interactions
+```{r}
+# Interaction
+model_interaction <- lm(expenditure ~ income + sqrt(share) + dependents + months + active + share*dependents + income*active, data = train_data)
+summary(model_interaction)
+
+plot(model_interaction, which = 1)
+plot(model_interaction, which = 2)
+vif(model_interaction)
+```
+The interaction terms I tested were betwwen share and dependents as well as income and active. These made the most sense as the share (monthly spending proportion of income) should increase as the number of dependents increase. Also the income active interaction makes sense because as your income increases you tend to have more active credit cards. Both of these interactions were significant, however the income and active had a high multicollinearity (7.15) so I wont be including that in the final model. These interaction terms did increase the adjusted $R^2$ up to 0.8338.
+
+### Step 4 — Checkpoint: Determine Whether Screening Is Needed 
+#### After Steps 2 and 3, you will now have a sense of how many terms the expanded model (higher-order + interactions) might include
+```{r}
+n <- nrow(train_data)
+n
+n/7
+```
+
+After steps 2 and 3, it seems that share should be transformed by a square root do to the curvelinear relationship betwwen share and expenditure. Interaction between share and dependents as well as income and active seemed to have a siginificance in prediction expenditure. However, the multicollinearty of income:active was high so we will take that out. Since we have a large sample size of 923 we don't need to do variable screening as we have 7 predictors. There was a high multicollinearty between share and sart(share) so I decided to only keep sqrt(share) as it made the model more accurate. 
+
+### Step 5 — Evaluate Need for Transformations
+```{r}
+hist(train_data$income, main = "Histogram of Income", xlab = "Income")
+hist(train_data$share, main = "Histogram of Share", xlab = "Share")
+hist(train_data$dependents, main = "Histogram of Dependents", xlab = "Dependents")
+hist(train_data$months, main = "Histogram of Months", xlab = "Months")
+hist(train_data$active, main = "Histogram of Active", xlab = "Active")
+hist(train_data$expenditure, main = "Histogram of Expenditure", xlab = "Expenditure")
+hist(sqrt(train_data$share),main = "Histogram of Square Root of Share",xlab = "Square Root of Share")
+train_data$expenditure_bc <- train_data$expenditure + 1
+boxcox(lm(expenditure_bc ~ income + share + dependents + months + active, data=train_data))
+```
+
+Based on the histograms, it is clear that all the variables, including the response Y and the predictors X, are heavily right-skewed, which can violate the assumptions of linear regression such as normality of residuals and constant variance. To address this, we applied the Box-Cox transformation to expenditure, which suggested a $\lambda = 0.5$, indicating that a square root transformation of expenditure is appropriate to stabilize variance and reduce skewness. For the predictors, many showed very strong right skew, so log transformations will be applied and to see if it helps with the R^2 and the RMSE as well as help normalize their distributions and reduce the influence of extreme values. The residual plots and the normal q-q plot although are slightly better, the assumptions are still slightly violated. 
+
+### Step 6 — Build Your Refined Model
+```{r}
+model_transformation <- lm(sqrt(expenditure) ~ log1p(income) + sqrt(share) + log1p(dependents) + log1p(months) + log1p(active) + share * dependents, data = train_data)
+summary(model_transformation)
+```
+
+```{r}
+final_model <- lm(expenditure ~ income + sqrt(share) + dependents + months + active + share*dependents, data = train_data)
+summary(final_model)
+
+res <- residuals(final_model)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+plot(final_model, which = 1)
+plot(final_model, which = 2)
+```
+### Step 7- Evaluate predictive performance on the test set (Individual Work)
+```{r}
+paste("The mean expenditure is", mean(credit_data$expenditure))
+paste0("The SD of expenditure is: ", sd(credit_data$expenditure))
+
+pred_test <- predict(model_transformation, newdata = test_data)
+RMSE_transformed <- sqrt(mean((test_data$expenditure - pred_test)^2))
+
+pred_test <- predict(final_model, newdata = test_data)
+RMSE_final <- sqrt(mean((test_data$expenditure - pred_test)^2))
+
+paste("RMSE (transformed model):", RMSE_transformed)
+paste("RMSE (final model):", RMSE_final)
+```
+
+Across the models, adding polynomial terms and extra transformations did improve model fit slightly, but they also introduced unnecessary complexity. The transformed model using expenditure and log-transformed predictors fit very well $R^2 = 0.96$, but when predicting on the testing data, the RMSE was extremely large, around 304. 
+
+In contrast, the final model using the original expenditure scale, with income, sqrt(share), dependents, months, active, and the share × dependents interaction, achieved a much lower RMSE of about 88.7. This means it performs better for predicting, even though its $R^2 = 0.83$. The residual plots for the final model also show more stable variance and fewer extreme deviations compared to earlier models.
+
+Overall, the refined final model outperforms the transformed model as in it predicted the testing data much better. 
+
+```{r}
+# Compute Test R^2
+ss_res <- sum((test_data$expenditure - pred_test)^2)
+ss_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+
+test_r2 <- 1 - ss_res/ss_tot
+test_r2
+```
+

@@ -800,11 +800,11 @@ months + active</p></li>
 <li><p>transformed response: <span class="math inline">\(sqrt(expenditure)\)</span></p></li>
 </ul>
 <pre class="r"><code># Interaction term, use the centered variable
-train_data$income_c      &lt;- train_data$income - mean(train_data$income)
-train_data$share_c      &lt;- train_data$share - mean(train_data$share)
+train_data$income_c &lt;- train_data$income - mean(train_data$income)
+train_data$share_c &lt;- train_data$share - mean(train_data$share)
 train_data$income_months_share &lt;- train_data$income_c * train_data$months * train_data$share_c
 # Centered polynomial terms
-train_data$income_c2   &lt;- train_data$income_c^2
+train_data$income_c2 &lt;- train_data$income_c^2
 train_data$log_share_c2 &lt;- train_data$log_share_c^2
 
 refined_model3 &lt;- lm(sqrt_expenditure ~ income_c + income_c2 + sqrt_share_c + log_share_c2 +
@@ -858,31 +858,36 @@ plot(refined_model3, which=1) # residuals vs fitted</code></pre>
 <div id="step-7--evaluate-predictive-performance-on-the-test-set-individual-work" class="section level1">
 <h1><strong>Step 7- Evaluate predictive performance on the test set
 (Individual Work)</strong></h1>
-<pre class="r"><code>test_data$income_c &lt;- test_data$income - mean(train_data$income)
-test_data$share_c &lt;- test_data$share - mean(train_data$income)
+<pre class="r"><code># center
+test_data$income_c &lt;- test_data$income - mean(train_data$income)
+test_data$share_c &lt;- test_data$share - mean(train_data$share)
+#interaction term
 test_data$income_months_share &lt;- test_data$income_c * test_data$months * test_data$share_c
-# Centered polynomial terms
-test_data$income_c2 &lt;- test_data$income_c^2
-
-test_data$log_share &lt;- log(test_data$share + 1)     # +1 if share has zeros
-test_data$log_share_c &lt;- test_data$log_share - mean(train_data$log_share)
-
-test_data$log_share_c2 &lt;- test_data$log_share_c^2
-
 test_data$sqrt_share &lt;- sqrt(test_data$share)
 test_data$sqrt_share_c &lt;- test_data$sqrt_share - mean(train_data$sqrt_share)
+
+test_data$log_share    &lt;- log(test_data$share + 1)
+test_data$log_share_c  &lt;- test_data$log_share - mean(train_data$log_share)
+test_data$log_share_c2 &lt;- test_data$log_share_c^2
+
+test_data$income_c2 &lt;- test_data$income_c^2
 
 pred_test &lt;- predict(refined_model3, newdata = test_data)
 RMSE_pred &lt;- sqrt(mean((test_data$expenditure - pred_test)^2))
 RMSE_pred</code></pre>
-<pre><code>## [1] 389.095</code></pre>
-<pre class="r"><code>final_model &lt;- lm(expenditure ~ income + sqrt(share) + dependents + months + active + share:income,
-                  data = train_data)
-pred_test &lt;- predict(final_model, newdata = test_data)
+<pre><code>## [1] 377.4998</code></pre>
+<pre class="r"><code>final_model1 &lt;- lm(expenditure ~ income + sqrt(share) + dependents + months + active + income:share, data = train_data)
+pred_test &lt;- predict(final_model1, newdata = test_data)
 # RMSE: square root of mean squared errors
-RMSE_final &lt;- sqrt(mean((test_data$expenditure - pred_test)^2))
-RMSE_final</code></pre>
+RMSE_final1 &lt;- sqrt(mean((test_data$expenditure - pred_test)^2))
+RMSE_final1</code></pre>
 <pre><code>## [1] 0.2173686</code></pre>
+<pre class="r"><code>final_model2 &lt;- lm(expenditure ~ income + sqrt(share) + dependents + months + active, data = train_data)
+pred_test &lt;- predict(final_model2, newdata = test_data)
+# RMSE: square root of mean squared errors
+RMSE_final2 &lt;- sqrt(mean((test_data$expenditure - pred_test)^2))
+RMSE_final2</code></pre>
+<pre><code>## [1] 192.0987</code></pre>
 <pre class="r"><code># Baseline prediction = mean of Y in training data
 baseline_pred &lt;- rep(mean(train_data$expenditure), nrow(test_data))
 
@@ -891,23 +896,35 @@ RMSE_baseline &lt;- sqrt(mean((test_data$expenditure - baseline_pred)^2))
 
 RMSE_baseline</code></pre>
 <pre><code>## [1] 336.2129</code></pre>
+<pre class="r"><code># Compute Test R^2
+ss_res &lt;- sum((test_data$expenditure - pred_test)^2)
+ss_tot &lt;- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+
+test_r2 &lt;- 1 - ss_res/ss_tot
+test_r2</code></pre>
+<pre><code>## [1] 0.6725784</code></pre>
 <p>The RMSE of the transformed model on the test data is 389.095, which
 is extremely large. Even though this model achieved a very high adjusted
-R^2 of 0.971 on the training set, the poor test performance indicates
-that it is heavily overfitting. It captures noise and overly specific
-patterns from the training data rather than the true underlying
-relationships. Its training RMSE of 181.257 further shows that it fits
-the training set well but does not generalize to new observations, the
-testing set.</p>
-<p>In contrast, the refined final model, built using the original
-response scale and simpler predictor structure, achieves an RMSE of only
-0.217 on the test set. This value is dramatically smaller than the
-baseline RMSE (approximately equal to the standard deviation of the
-outcome, 336.2129), meaning the refined model predicts extremely well
-relative to the natural variability in the data. The fact that this
-model performs far better on the test set, despite being simpler,
-confirms that reducing unnecessary transformations and complexity
-improves predictive accuracy and stability.</p>
+R^2 of 0.971 on the training set, the poor test performance shows clear
+overfitting. The model captures noise and highly specific patterns from
+the training data rather than the underlying relationship. Its training
+RMSE of 181.257 reinforces that it fits the training set well but fails
+to generalize to new observations.</p>
+<p>In comparison, the first version of the final model—using the
+original response scale and a simpler predictor set—initially produced
+an extremely small RMSE of about 0.217. While this seemed to indicate
+excellent predictive accuracy, the value was suspiciously small relative
+to the outcome’s natural variability (baseline RMSE 336). This unusually
+low error suggested that something in the model specification or
+preprocessing introduced information leakage or instability, resulting
+in an unrealistically optimistic RMSE.</p>
+<p>After correcting the specification by removing the interaction term
+income:share, the revised final model produced a more realistic test
+RMSE of approximately 192. This value is substantially larger than 0.217
+but meaningfully lower than the 389 RMSE from the transformed model. The
+updated result shows that the simpler model structure does in fact
+generalize better than the heavily transformed model, once the earlier
+suspicious issue is removed.</p>
 <p>Conclusion: The comparison clearly shows that the highly transformed
 model was overfitting, while the simplified final model generalizes
 substantially better. The huge gap between training and testing RMSE for
@@ -915,6 +932,62 @@ the transformed model signals high variance and poor predictive
 reliability. In contrast, the final model’s exceptionally small RMSE
 (0.217) indicates strong predictive power and suggests it is the more
 appropriate model for this problem.</p>
+<table>
+<colgroup>
+<col width="15%" />
+<col width="15%" />
+<col width="15%" />
+<col width="15%" />
+<col width="38%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Train R^2</th>
+<th>Test R^2 </th>
+<th>RMSE</th>
+<th>Comments</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Shreya</td>
+<td>0.8301</td>
+<td>0.8833077</td>
+<td>88.712572</td>
+<td><strong>Strong and balanced model.</strong> Good fit on training
+data and reasonably low RMSE. Likely the most stable among the
+group.</td>
+</tr>
+<tr class="even">
+<td>Kyle</td>
+<td>0.9709521</td>
+<td>-0.2750931</td>
+<td>138.3973759</td>
+<td><strong>Overfitting risk.</strong> Very high Train R² but relatively
+high RMSE indicates the model may not generalize well. The simpler
+formula may be missing important variables.</td>
+</tr>
+<tr class="odd">
+<td>Jenny</td>
+<td>0.84</td>
+<td>-0.3513806</td>
+<td>102.17</td>
+<td><strong>Poor generalization.</strong> Negative Test R² means the
+model performs worse than predicting the mean. The interaction term may
+be unnecessary or unstable.</td>
+</tr>
+<tr class="even">
+<td>Lydia</td>
+<td>1</td>
+<td>0.6725784</td>
+<td>0.2173686</td>
+<td><strong>Suspicious / overfitted model.</strong> Perfect Train R² and
+extremely tiny RMSE indicate unrealistic performance—likely due to a
+scaling error or misuse of transformed variables.</td>
+</tr>
+</tbody>
+</table>
 </div>
 
 
