@@ -1,0 +1,144 @@
+---
+title: "Week 9 - Final Model"
+author: "Kyle Riebeling"
+date: "2025-12-05"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align='center', fig.height=7.5, fig.width=7.5, warning = FALSE)
+
+options(scipen = 7)
+
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+
+residAnalysis <- function(model) {
+  par(mfrow=c(2,2))
+  plot(model)
+  par(mfrow=c(1,1))
+  
+  cat("\nShapiro-Wilk's normality test for our model:\n")
+  print(shapiro.test(residuals(model)))
+  cat("\nDurbin-Watson's independence test for our model:\n\n")
+  print(car::durbinWatsonTest(model))
+}
+
+modelAnalysis <- function(model, test_data){
+  #Table for Train r^2, Test R^2, and RMSE
+  
+  train_r_2 <- summary(model)$adj.r.squared
+  
+  #Compute RMSE
+  pred_test <- predict(model, newdata = test_data)
+  RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+  
+  #Compute Test R^2
+  ss_res <- sum((test_data$expenditure - pred_test)^2)
+  ss_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+  test_r2 <- 1 - ss_res/ss_tot
+  test_r2
+  
+  #Create Table
+  model_values <- c(train_r_2, test_r2, RMSE)
+  
+  sum_table <- data.frame(model_values, row.names = c("Training R^2", "Test R^2", "RMSE"))
+  kable(sum_table)
+}
+
+##Load data
+set.seed(92394)
+
+data <- read_csv("AER_credit_card_data.csv", show_col_types = FALSE)
+
+data <- data %>% filter(expenditure > 0)
+n <- nrow(data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- data[train_index, ]
+test_data  <- data[-train_index, ]
+```
+
+
+## Simplifying our model
+
+Income and share provide reciprocal information, so we do not need to include both of them. We will remove income, since share has a higher correlation. A partial F-test would state that we should keep income, but that is because the reciprocal information is causing the linear regression to produce invalid results. Removing income should make our residuals act more normal and produce a model that is more accurate to the true regression line, even if it reduces our adjusted $R^2$ and RMSE.
+
+```{r}
+model1 <- lm(expenditure ~ sqrt(share) * dependents + months + active, data = train_data)
+summary(model1)
+modelAnalysis(model1, test_data)
+```
+
+Now we will see if months is important to keep in our model, since it is showing as insignificant in our model summary output.
+
+```{r}
+model2 <- lm(expenditure ~ sqrt(share) * dependents + active, data = train_data)
+anova(model1, model2)
+```
+
+The parital F-test comparing the full model, model1, vs the reduced model, model2, reported a very high p-value of .9732. This means the difference in adding months as a predictor is not significant at all. We should exclude months and use the simpler model, model2.
+
+```{r}
+summary(model2)
+modelAnalysis(model2, test_data)
+```
+
+We can see in the model summary output that our adjusted $R^2$ actually went up slightly by excluding months. This confirms that months was just adding random noise to our model.
+
+## Residual and Assumption Review
+
+```{r, echo = FALSE}
+residAnalysis(model2)
+```
+
+Removing income and squaring share brought our residuals much closer to passing all assumptions. We can still see a slight pattern in our Residuals vs Fitted plot. Our Q-Q plot looks much better, besides deviations in the upper tail. Since we have already tried transformations on both expenditure and our response variables, our next option is to remove any outliers. We can do this for our data set because we want to predict expenditure for an average person using this credit card, not predict people who will spend more than the average person.
+
+To remove outliers, we will look at standarized residuals and remove any that are over 3 standard deviations from 0. From our Q-Q plot, we can see 3 highlighted observations that are over 5 standard deviations from 0. We will start be removing these and checking our model again.
+
+```{r}
+train_data <- train_data[-c(342, 322, 492),]
+model3 <- lm(expenditure ~ sqrt(share) * dependents + active, data = train_data)
+summary(model3)
+modelAnalysis(model3, test_data)
+```
+
+Our model performs slightly better now, with a training adjusted $R^2$ increasing to .7329, as well as the RMSE slightly reducing. Now we will see if the residual analysis improved as well.
+
+```{r, echo = FALSE}
+residAnalysis(model3)
+```
+
+The plots no longer have such extreme outliers, but the assumptions all still fail. This makes sense when looking back at our EDA. The bivariate relationships between expenditure and the predictor variables all contain heteroscedasticity. Creating a model without heteroscedasticity in the residuals is very unlikely when the data itself is full of it, especially if we want a model that is interpretative. 
+
+## Prediction Accuracy
+
+```{r}
+modelAnalysis(model3, test_data)
+```
+
+This model performs better on the training data, with a slightly lower adjusted $R^2$ on the testing data. The RMSE, however, is still relatively low, showing that it is not completely useless in predicting expenditure. A test adjusted $R^2$ of .6774 and a RMSE of 139.306 shows that this model generalizes moderately well, with only slight instability between training and testing.
+
+## Model Reflection and Interpretation
+
+My final model is as follows:
+
+$E[expenditure] = -204.6722 + 1491.9818(\sqrt{share}) + -10.0464(dependents) + 2.9297(active) + 146.9072(\sqrt{share})(dependents)$
+
+
+The intercept is not useful, as a negative value for expenditure is not possible. Across all $B_1 \rightarrow B_4$, it is easy to see that $\sqrt{share}$ is the most important predictor variable. $B_1$ is much higher than all other predictors. The next highest is $B_4$, which is the interaction between $\sqrt{share}$ and dependents. Active was found to also have a small significant effect. Dependents on its own was not significant.
+
+The most important change to our model was dropping income since it added redundant information and made the least squares method "break". Removing income made our residuals closer to normality and made our model and beta coefficients easier to interpret. When trying out different combinations of transformations, higher-order terms, and predictor variables, I obtained models that were slightly closer to passing residual analysis. None passed, however. Because none of my models passed residual analysis, I decided to used a much simpler model that was much more interpretable and still reasonably close to passing our residual analysis. Using the complex models would've left me with a model that did not satisfy the residual assumptions and would be useless practically, since the data was so transformed.
+
+
+
+
+
+
+
+
+
+

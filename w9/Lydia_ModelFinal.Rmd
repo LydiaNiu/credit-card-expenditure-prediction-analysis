@@ -1,0 +1,21 @@
+---
+title: "Lydia_ModelFinal"
+output: html_document
+date: "2025-12-08"
+---
+
+```{r echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+```
+
+# **Step 1 — Simplify Your Expanded Model (Individual Work)**
+
+# **Step 2 — Residual & Assumption Review (Individual)**
+
+# **Step 3 — Prediction Accuracy (Individual)**
+
+# **Step 4 — Model Reflection & Interpretation (Individual)**

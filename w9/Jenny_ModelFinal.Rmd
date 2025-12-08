@@ -1,0 +1,199 @@
+---
+title: "Week 8 Project"
+author: "Jenny Zhang"
+output: html_document
+date: "2025-11-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(car)
+library(MASS)       
+
+creditData <- read.csv("AER_credit_card_data.csv")
+set.seed(862389455)
+rows <- nrow(creditData)
+trainNum <- sample(1:rows, size = 0.7 * rows)
+trainData <- creditData[trainNum, ]
+testData  <- creditData[-trainNum, ]
+```
+
+```{r, include=FALSE}
+
+# center points
+  trainData$sqrt_share     <- sqrt(trainData$share)
+  trainData$sqrt_months    <- sqrt(trainData$months)
+  trainData$log_months    <- log(trainData$months + 1)
+  trainData$log_income    <- log(trainData$income + 1)
+  trainData$log_active   <- log(trainData$active + 1)
+  trainData$log_dependents   <- log(trainData$dependents + 1)
+  trainData$log_share   <- log(trainData$share + 1)
+
+  
+  trainData$sqrt_share_c   <- trainData$sqrt_share - mean(trainData$sqrt_share)
+  trainData$sqrt_months_c  <- trainData$sqrt_months - mean(trainData$sqrt_months)
+  trainData$log_months_c    <- trainData$log_months - mean(trainData$log_months)
+  trainData$log_income_c    <- trainData$log_income - mean(trainData$log_income)
+  trainData$log_active_c    <- trainData$log_active - mean(trainData$log_active)
+  trainData$log_dependents_c    <- trainData$log_dependents - mean(trainData$log_dependents)
+  trainData$log_share_c    <- trainData$log_share - mean(trainData$log_share)
+
+  trainData$income_c     <- trainData$income - mean(trainData$income, na.rm = TRUE)
+  trainData$share_c      <- trainData$share - mean(trainData$share, na.rm = TRUE)
+  trainData$months_c     <- trainData$months - mean(trainData$months, na.rm = TRUE)
+  trainData$dependents_c <- trainData$dependents - mean(trainData$dependents, na.rm = TRUE)
+  trainData$active_c     <- trainData$active - mean(trainData$active, na.rm = TRUE)
+                                              
+
+mean_income      <- mean(trainData$income)
+mean_share       <- mean(trainData$share)
+mean_months      <- mean(trainData$months)
+mean_active      <- mean(trainData$active)
+mean_dependents  <- mean(trainData$dependents)
+
+testData$log_income     <- log(testData$income + 1)
+testData$log_dependents <- log(testData$dependents + 1)
+testData$log_active     <- log(testData$active + 1)
+testData$log_share      <- log(testData$share + 1)
+
+testData$sqrt_share     <- sqrt(testData$share)
+testData$sqrt_months    <- sqrt(testData$months)
+  
+testData$log_income_c      <- testData$log_income - mean(testData$log_dependents)
+testData$log_dependents_c  <- testData$log_dependents - mean(testData$log_income)
+
+testData$income_c          <- testData$income - mean_income
+testData$share_c           <- testData$share - mean_share
+testData$months_c          <- testData$months - mean_months
+testData$active_c          <- testData$active - mean_active
+testData$dependents_c      <- testData$dependents - mean_dependents
+testData$log_share_c     <- testData$log_share - mean(testData$log_share)
+testData$log_active_c     <- testData$log_active - mean(testData$log_active)
+```
+
+## Week 9
+
+## 1.
+
+Recap: We determined that the best model was the model from Week 8's step 4 with squared income, and an interaction variable between variables dependents and active.
+
+```{r}
+model2_poly_int_simplify <- lm(
+  expenditure ~ income_c + share_c + I(income_c^2) + active_c + dependents_c + dependents_c * active_c, data = trainData
+)
+summary(model2_poly_int_simplify)
+```
+
+Now we can check using F tests if any variables can be removed to simplify the model.
+
+```{r}
+model_no_quad <- lm(
+  expenditure ~ income_c + share_c + active_c +
+    dependents_c + dependents_c * active_c,
+  data = trainData
+)
+
+anova(model_no_quad, model2_poly_int_simplify)
+
+```
+
+The partial F-test comparing the full model to a reduced model without the quadratic income term showed that removing income squared did not significantly reduce model fit as F(1,916)=0.88,p=0.349. Because the quadratic component of income does not meaningfully improve prediction and is not statistically supported, we can remove the quadratic term for parsimony.
+
+To further simplify our model we can proceed to remove income as it is very similar to share, and out of the two share is slightly more informative and may be able to provide us with more insights into our model.
+
+```{r}
+model_no_quad <- lm(
+  expenditure ~ income_c+ share_c + active_c + dependents_c + dependents_c * active_c, data = trainData
+)
+
+summary(model_no_quad)
+
+```
+
+```{r}
+  pred_old <- predict(model_no_quad, newdata = trainData)
+  rmse_old <- sqrt(mean((trainData$expenditure - pred_old)^2, na.rm = TRUE))
+  rmse_old
+  
+  pred_old <- predict(model2_poly_int_simplify, newdata = trainData)
+  rmse_old <- sqrt(mean((trainData$expenditure - pred_old)^2, na.rm = TRUE))
+  rmse_old
+```
+
+Removing our quadratic term income squared did not change the performance of our model all that much, so taking it out manages to simplify the model while maintaining generally the same reliability.
+
+## 2.
+
+Now we proceed to check our residuals vs fitted model, QQ plot, etc.
+
+```{r}
+  model_final <- model_no_quad
+  
+  plot(model_final, which = 1, col = "orange")
+  
+  
+  plot(model_final, which = 2, col = "orange")
+  
+# checking if outliers shuld be removed
+  plot(model_final, which = 4, col = "orange")   
+  plot(model_final, which = 5, col = "orange")  
+  plot(model_final, which = 6, col = "orange") 
+```
+
+Our residuals vs fitted and QQ residuals plots have stayed relatively the same compared to our simplified model, which is a positive note. However, looking at our Cook's distance and Residuals vs Leverage plots, we can see that there are some points that may be described as highly influential. This should be looked into and removal of outliers should be considered.
+
+```{r}
+
+std_res <- rstandard(model_final)
+outliers <- order(std_res, decreasing = TRUE)[1:3]
+outliers
+
+trainData_no_out <- trainData[-outliers, ]
+
+
+# Refit the model
+model_final_no_out <- lm(
+  expenditure ~ income_c + share_c + active_c + dependents_c + dependents_c * active_c,
+  data = trainData_no_out
+)
+
+
+summary(model_final_no_out)
+
+
+# Residual vs fitted plot
+par(mar = c(4,4,2,1))
+plot(model_final_no_out, which = 2, col = "orange")
+plot(model_final_no_out, which = 1, col = "orange")
+
+ 
+  pred_out <- predict(model_final_no_out, newdata = trainData_no_out)
+  rmse_out <- sqrt(mean((trainData_no_out$expenditure - pred_out)^2, na.rm = TRUE))
+  rmse_out
+```
+
+Our RMSE and residuals have stayed relatively the same, but our adjusted R\^2 has showed very minimal, almost insignificant improvement.
+
+## 3. 
+```{r}
+pred_test <- predict(model_final_no_out, newdata = testData)
+RMSE <- sqrt(mean((testData$expenditure - pred_test)^2))
+RMSE
+summary(model_final_no_out)$r.squared
+
+
+
+
+```
+
+The RMSE of our model has gone up by around 50%, but our adjusted R\^2 has stayed relatively the same, maintaining a generally reliable accuracy.
+
+## 4.
+
+The final regression model, expenditure \~ income_c + share_c + active_c + dependents_c + dependents_c \* active_c identifies income, insurance share, and the dependents × active interaction as the strongest predictors. Both income and insurance share show large, positive, and statistically significant effects. The interaction between dependents and active status remains significant, suggesting that the influence of dependents on expenditure depends on whether an individual is active.
+
+Modeling decisions that had the greatest influence included removing unneeded nonlinear terms, which still managed to keep the meaningful interactions. After removing a small number of extreme outliers identified in the Q–Q plot, predictive accuracy decreased (RMSE increased from 102.22 to 150.25), but overall fit remained effectively unchanged. This shows the balance between fit and interpretability as we wanted to keep a simple, interpretable model while keeping crucial components. Despite the increase in RMSE, the cleaned model can still provide a relatviely reliable representation
