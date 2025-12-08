@@ -12,7 +12,126 @@ library(polycor)
 library(knitr)
 ```
 
+The professor outlined several key constraints for cleaning the data to ensure better model performance and interpretability. First,  individual's income is too similar to their share of expenditure, the income variable should be deleted, as share is considered more informative for the analysis. Second, when examining expenditure against the logarithm of the month, the relationship should exhibit a curvilinear shape due to the data spanning a large range, suggesting that a non-linear model may be more appropriate for capturing this pattern. Third, remove the zero dependent.
+
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+
+set.seed(7)
+credit_data <- subset(credit_data, dependents != 0)
+credit_data <- subset(credit_data, expenditure != 0)
+
+train_index <- sample(1:nrow(credit_data), size = 0.7 * nrow(credit_data))
+
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+# check the row numbers
+# nrow(credit_data) #496
+# nrow(train_data) #347
+# nrow(test_data) #149
+```
+
+final model from last checkpoint after following the advices from the professor:
+```{r}
+full_model <- lm(expenditure ~ sqrt(share) + dependents + months + active, data = train_data)
+pred_full <- predict(full_model, newdata = test_data)
+RMSE_full_baseline <- sqrt(mean((test_data$expenditure - pred_full)^2))
+RMSE_full_baseline  #146.9447
+```
+From the residual vs fitted plot and qq plot, we can see that data cleaning does help with the assumption of normality and constant variance.
+```{r}
+plot(full_model, which=1) # residuals vs fitted
+qqnorm(resid(full_model)); qqline(resid(full_model)) # normality
+```
+
 # **Step 1 — Simplify Your Expanded Model (Individual Work)**
+
+To test which transformation term is necessary, we look at the RMSE, adjusted R^2, and F-test result comparing to the original full model. I created 2 functions to generate a summary table of RMSE and adjusted R^2 for full vs reduced model and print out the f-test result.
+```{r}
+# Function 1: Prints R^2 and RMSE comparison table
+print_comparison_table <- function(full_model, reduced_model, test_data) {
+  
+  adj_r2_full <- summary(full_model)$adj.r.squared
+  adj_r2_reduced <- summary(reduced_model)$adj.r.squared
+  
+  pred_full <- predict(full_model, newdata = test_data)
+  rmse_full <- sqrt(mean((test_data$expenditure - pred_full)^2))
+  
+  pred_reduced <- predict(reduced_model, newdata = test_data)
+  rmse_reduced <- sqrt(mean((test_data$expenditure - pred_reduced)^2))
+  
+  summary_table <- data.frame(
+    Model = c("Full Model", "Reduced Model"),
+    `Adj R^2 (Train)` = c(adj_r2_full, adj_r2_reduced),
+    `RMSE (Test)` = c(rmse_full, rmse_reduced),
+    check.names = FALSE
+  )
+  print(summary_table, row.names = FALSE)
+  
+  return(rmse_reduced)
+}
+```
+
+```{r}
+summary(full_model)
+```
+
+From the summary, we can see that the predictors months and active are not significant to the model, thus we test whether these terms are necessary first.
+
+1.  Test the Necessity of the months Term
+```{r}
+reduced_model_months <- lm(expenditure ~ sqrt(share) + dependents + active, data = train_data)
+anova(full_model, reduced_model_months)
+rmse_red_months <- print_comparison_table(full_model, reduced_model_months, test_data)
+```
+Analysis: 
+p-value > 0.05 suggests 'months' can be removed.
+The reduced model has a lower RMSE by about 0.2, which considered as insignificant.
+Conclusion: The term 'months' will be removed due to being insignificant to the full model.
+
+
+2. Test the Necessity of the active Term 
+```{r}
+reduced_model_active <- lm(expenditure ~ sqrt(share) + dependents + months, data = train_data)
+
+anova(full_model, reduced_model_active)
+
+rmse_red_active <- print_comparison_table(full_model, reduced_model_active, test_data)
+```
+Analysis: 
+p-value > 0.05 suggests 'active' can be removed.
+The reduced model has a lower RMSE by about 0.6, which considered as insignificant.
+Conclusion: The term 'active' will be removed due to being insignificant to the full model.
+
+Although we already know that dependents are significant to the model, we may double check.
+
+3. Test the Necessity of the dependents Term
+```{r}
+reduced_model_dependents <- lm(expenditure ~ sqrt(share) + months + active, data = train_data)
+anova(full_model, reduced_model_dependents)
+rmse_red_dependents <- print_comparison_table(full_model, reduced_model_dependents, test_data)
+```
+Analysis: 
+p-value < 0.05 suggests 'dependents' can not be removed.
+The reduced model has a higher RMSE than the original model, however the partial f-test (anova) is a more formal statistically finding. Thus we do not remove 'dependents'.
+Conclusion: Keep the predictor dependents.
+
+
+Thus, the final model will be:
+```{r}
+final_model <- lm(expenditure ~ sqrt(share) + dependents, data = train_data)
+summary(final_model)
+plot(final_model, which=1) # residuals vs fitted
+qqnorm(resid(final_model)); qqline(resid(final_model)) # normality
+```
+Compare the adjusted R^2 of the full model from last week to the final model after simplified, we can see that the final model has a higher adjusted R^2, indicates it captures more variance showing a better performance.
+```{r}
+cat("Full model adjusted R^2: \n")
+summary(full_model)$adj.r.squared
+cat("\nFinal model adjusted R^2: \n")
+summary(final_model)$adj.r.squared
+```
 
 # **Step 2 — Residual & Assumption Review (Individual)**
 

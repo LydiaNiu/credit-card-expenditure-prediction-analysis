@@ -52,7 +52,7 @@ modelAnalysis <- function(model, test_data){
 ##Load data
 set.seed(92394)
 
-data <- read_csv("AER_credit_card_data.csv", show_col_types = FALSE)
+data <- read_csv("credit_card_data.csv", show_col_types = FALSE)
 
 data <- data %>% filter(expenditure > 0)
 n <- nrow(data)
@@ -100,7 +100,8 @@ Removing income and squaring share brought our residuals much closer to passing 
 To remove outliers, we will look at standarized residuals and remove any that are over 3 standard deviations from 0. From our Q-Q plot, we can see 3 highlighted observations that are over 5 standard deviations from 0. We will start be removing these and checking our model again.
 
 ```{r}
-train_data <- train_data[-c(342, 322, 492),]
+train_data <- train_data[-c(342, 322, 492)
+                         ,]
 model3 <- lm(expenditure ~ sqrt(share) * dependents + active, data = train_data)
 summary(model3)
 modelAnalysis(model3, test_data)
