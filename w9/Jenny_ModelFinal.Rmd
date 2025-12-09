@@ -185,12 +185,15 @@ RMSE <- sqrt(mean((testData$expenditure - pred_test)^2))
 RMSE
 summary(model_final_no_out)$r.squared
 
-
+ss_res <- sum((testData$expenditure - pred_test)^2)
+ss_tot <- sum((testData$expenditure - mean(testData$expenditure))^2)
+test_r2 <- 1 - ss_res/ss_tot
+cat("TEST R^2: ", test_r2)
 
 
 ```
 
-The RMSE of our model has gone up by around 50%, but our adjusted R\^2 has stayed relatively the same, maintaining a generally reliable accuracy.
+The RMSE of our model has gone up by around 50%, but our adjusted R\^2 has dropped, signalling some descrease in accuracy.
 
 ## 4.
 
