@@ -1,25 +1,79 @@
 ---
 title: "Group_Report4_ModelFinal"
-output: html_document
+author: {"Lydia Niu, Jenny Zhang, Shreya, Kyle"}
 date: "2025-12-08"
+output: html_document
 ---
 
-```{r setup, include=FALSE}
+There were something wrong with our YAML file, thus the title and the author are not correct.
+
+title: "Group_Report4_ModelFinal"
+
+author: {"Lydia Niu, Jenny Zhang, Shreya, Kyle"}
+
+```{r include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+library(lmtest)
+
 knitr::opts_chunk$set(echo = TRUE)
+credit_data <- read.csv("credit_card_data.csv")
+set.seed(862336550)
+credit_data <- subset(credit_data, dependents != 0)
+credit_data <- subset(credit_data, expenditure != 0)
+
+n <- nrow(credit_data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+
+train_data <- credit_data[train_index, ]
+
+test_data  <- credit_data[-train_index, ]
+nrow(credit_data)
+nrow(train_data)
+nrow(test_data)
 ```
 
 # \*Group work
 
 # **Step 4 — Model Reflection & Interpretation**
 
+The representative plot for our group is Shreya's model.
+
+```{r}
+final_model <- lm(sqrt(expenditure) ~ sqrt(share) + dependents + sqrt(share):dependents, data = train_data)
+summary(final_model)
+```
+
+This model showed the best predictive performance for expenditure and produced the most well-behaved residuals among the models we tested. It achieved the lowest RMSE, indicating accurate predictions on unseen data, and a high test \$R\^2\$ of 0.7153. Although Jenny's model had slightly higher training and test \$R\^2\$ values, its RMSE was significantly higher, meaning its predictions were less precise.
+
+```{r}
+res <- residuals(final_model)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+
+plot(final_model, which = 1)
+plot(final_model, which = 2)
+dwtest(final_model)
+```
+
+The residual vs fitted plot shows some minor deviations, but overall the variance is more stabilized after transforming the response variable with a square root. The histogram and Q-Q plot suggest that residuals are approximately normally distributed. Additionally, by doing a Durbin-Watson test, we are able to see that our independence assumption is satisfied. Our analysis indicated that share and the interaction between share and dependents are the strongest predictors of expenditure, highlighting both the direct and conditional effects on the response. Overall, the model provides a reliable and interpretable way for understanding the factors that influence expenditure.
+
 # **Step 5 — Group Comparison & Synthesis (Collaborative)**
 
 | Member | Adj R\^2 (train) | R\^2 (test) | RMSE | transformation | interactions/high-order | comment |
-|-----------|-----------|-----------|-----------|-----------|-----------|------------------------------------|
+|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
 | Lydia | 0.7903 | 0.4376 | 303.8632 | sqrt(share) | NA | Weak generalization; highest RMSE and largest gap between train/test performance. |
 | Jenny | 0.8664 | 0.7591 | 153.7357 | NA | dependents_c \* active_c | Strongest balance between fit and predictive accuracy; stable performance across datasets. |
 | Shreya | 0.8391 | 0.7153 | 4.344821 | sqrt(expenditure) , sqrt(share) | sqrt(share) \* dependents | Best raw predictive accuracy (lowest RMSE), though transformation makes interpretation less intuitive. |
 | Kyle | 0.7323 | 0.6774 | 139.3057 | sqrt(share) | sqrt(share) \* dependents | Good stability and reasonable predictive performance, but weaker fit than Jenny’s and Shreya’s models. |
+
+Across the four members, all found income and insurance share to be strong predictors of expenditure, with these variables being significant in all of the models that were developed. The models mainly varied in whether or not they were nonlinear transformations or ipredicitiveterms. This affected the balance between the hwo the model could be interpreted and how accurate its predictions were. Lydia's model relied more on transforming the share variable with no interaction variables. It had a weak abaility to generalize and the highest RMSE. There was also a big difference between the test and train R\^2 values. Shreya's model had the lowest RMSE, showing that the model was very accurate in making predictions, but using square root transformations made it slightly less straightforward. Kyle's model showed good generalization and a decent RMSE as it maintained its stability and was able to predict relatively accurately, though it may not have been as good as others. Jenny's model performed at a reasonable level when the model is taken into account as there was only a single interaction model. Training and test R\^2 were also around the same, showing stability with just one interaction variable. All members showed minor deviations in their assumption checks, but none were severe enough to impact the reliability of the model. As a group, we decided Shreya's model as the representative final model due to its predicitive accuracy and stability across the partitioned data.
 
 # **Step 6 — Group Reflection (Collaborative)**
 
@@ -31,12 +85,6 @@ Throughout this project, we gained practical experience on the process of linear
 
 ```{r}
 options(scipen = 7)
-
-library(tidyverse)
-library(ggplot2)
-library(gridExtra)
-library(polycor)
-library(knitr)
 
 residAnalysis <- function(model) {
   par(mfrow=c(2,2))

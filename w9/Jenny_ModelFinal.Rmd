@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(car)
 library(MASS)       
 
-creditData <- read.csv("AER_credit_card_data.csv")
+creditData <- read.csv("credit_card_data.csv")
 set.seed(862389455)
 rows <- nrow(creditData)
 trainNum <- sample(1:rows, size = 0.7 * rows)

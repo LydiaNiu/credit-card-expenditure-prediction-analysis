@@ -903,6 +903,17 @@ ss_tot &lt;- sum((test_data$expenditure - mean(test_data$expenditure))^2)
 test_r2 &lt;- 1 - ss_res/ss_tot
 test_r2</code></pre>
 <pre><code>## [1] 0.6725784</code></pre>
+<pre class="r"><code>anova(final_model1,final_model2)</code></pre>
+<pre><code>## Analysis of Variance Table
+## 
+## Model 1: expenditure ~ income + sqrt(share) + dependents + months + active + 
+##     income:share
+## Model 2: expenditure ~ income + sqrt(share) + dependents + months + active
+##   Res.Df      RSS Df Sum of Sq         F    Pr(&gt;F)    
+## 1    916       35                                     
+## 2    917 11815382 -1 -11815347 304901273 &lt; 2.2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
 <p>The RMSE of the transformed model on the test data is 389.095, which
 is extremely large. Even though this model achieved a very high adjusted
 R^2 of 0.971 on the training set, the poor test performance shows clear
