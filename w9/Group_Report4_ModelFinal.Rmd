@@ -1,0 +1,840 @@
+---
+title: "Group_Report4_ModelFinal"
+author: {"Lydia Niu, Jenny Zhang, Shreya, Kyle"}
+date: "2025-12-08"
+output: html_document
+---
+
+There were something wrong with our YAML file, thus the title and the author are not correct.
+
+title: "Group_Report4_ModelFinal"
+
+author: {"Lydia Niu, Jenny Zhang, Shreya, Kyle"}
+
+```{r include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+library(lmtest)
+
+knitr::opts_chunk$set(echo = TRUE)
+credit_data <- read.csv("credit_card_data.csv")
+set.seed(862336550)
+credit_data <- subset(credit_data, dependents != 0)
+credit_data <- subset(credit_data, expenditure != 0)
+
+n <- nrow(credit_data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+
+train_data <- credit_data[train_index, ]
+
+test_data  <- credit_data[-train_index, ]
+nrow(credit_data)
+nrow(train_data)
+nrow(test_data)
+```
+
+# \*Group work
+
+# **Step 4 — Model Reflection & Interpretation**
+
+The representative plot for our group is Shreya's model.
+
+```{r}
+final_model <- lm(sqrt(expenditure) ~ sqrt(share) + dependents + sqrt(share):dependents, data = train_data)
+summary(final_model)
+```
+
+This model showed the best predictive performance for expenditure and produced the most well-behaved residuals among the models we tested. It achieved the lowest RMSE, indicating accurate predictions on unseen data, and a high test \$R\^2\$ of 0.7153. Although Jenny's model had slightly higher training and test \$R\^2\$ values, its RMSE was significantly higher, meaning its predictions were less precise.
+
+```{r}
+res <- residuals(final_model)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+
+plot(final_model, which = 1)
+plot(final_model, which = 2)
+dwtest(final_model)
+```
+
+The residual vs fitted plot shows some minor deviations, but overall the variance is more stabilized after transforming the response variable with a square root. The histogram and Q-Q plot suggest that residuals are approximately normally distributed. Additionally, by doing a Durbin-Watson test, we are able to see that our independence assumption is satisfied. Our analysis indicated that share and the interaction between share and dependents are the strongest predictors of expenditure, highlighting both the direct and conditional effects on the response. Overall, the model provides a reliable and interpretable way for understanding the factors that influence expenditure.
+
+# **Step 5 — Group Comparison & Synthesis (Collaborative)**
+
+| Member | Adj R\^2 (train) | R\^2 (test) | RMSE | transformation | interactions/high-order | comment |
+|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+| Lydia | 0.7903 | 0.4376 | 303.8632 | sqrt(share) | NA | Weak generalization; highest RMSE and largest gap between train/test performance. |
+| Jenny | 0.8664 | 0.7591 | 153.7357 | NA | dependents_c \* active_c | Strongest balance between fit and predictive accuracy; stable performance across datasets. |
+| Shreya | 0.8391 | 0.7153 | 4.344821 | sqrt(expenditure) , sqrt(share) | sqrt(share) \* dependents | Best raw predictive accuracy (lowest RMSE), though transformation makes interpretation less intuitive. |
+| Kyle | 0.7323 | 0.6774 | 139.3057 | sqrt(share) | sqrt(share) \* dependents | Good stability and reasonable predictive performance, but weaker fit than Jenny’s and Shreya’s models. |
+
+Across the four members, all found income and insurance share to be strong predictors of expenditure, with these variables being significant in all of the models that were developed. The models mainly varied in whether or not they were nonlinear transformations or ipredicitiveterms. This affected the balance between the hwo the model could be interpreted and how accurate its predictions were. Lydia's model relied more on transforming the share variable with no interaction variables. It had a weak abaility to generalize and the highest RMSE. There was also a big difference between the test and train R\^2 values. Shreya's model had the lowest RMSE, showing that the model was very accurate in making predictions, but using square root transformations made it slightly less straightforward. Kyle's model showed good generalization and a decent RMSE as it maintained its stability and was able to predict relatively accurately, though it may not have been as good as others. Jenny's model performed at a reasonable level when the model is taken into account as there was only a single interaction model. Training and test R\^2 were also around the same, showing stability with just one interaction variable. All members showed minor deviations in their assumption checks, but none were severe enough to impact the reliability of the model. As a group, we decided Shreya's model as the representative final model due to its predicitive accuracy and stability across the partitioned data.
+
+# **Step 6 — Group Reflection (Collaborative)**
+
+Throughout this project, we gained practical experience on the process of linear regression. We learned the importance of conducting a thorough EDA. Understanding the distributions and bivariate trends of the raw data helps make the process of model building go smoother. We also learned that transformations are only a possible solution to fixing residual analysis, not a guarantee. Because our raw data contained so much heteroscedasticity, the many combinations of transformations and higher order terms were not enough to make our residuals normal. This project showed us that it is important to be as in depth as possible in our EDA. If we would have noticed the heteroscedasticity in our raw data during our EDA, we could've spent more time looking for a different data set or exploring a different response variable for our analysis. If we had more time, we could have looked for and explored a different data set, now that we know our data set contains too much heteroscedasticity to be used for least-squares linear regression. Approaching this project by combining our different splits of data allowed us to test whether our individual findings were accurate. Across all members, our results were largely similar for all steps. There were slight differences in variable significance, adjusted \$R\^2\$ and RMSE, but overall, our models generalized moderately well while failing residual analysis. The collaborative synthesis was most helpful for residual analysis. All members having residuals that were not normal and did not have heteroscedasticity made it possible to conclude that our data didn't work well for linear regression rather than user error.
+
+# \*Individual work
+
+# Kyle's work
+
+```{r}
+options(scipen = 7)
+
+residAnalysis <- function(model) {
+  par(mfrow=c(2,2))
+  plot(model)
+  par(mfrow=c(1,1))
+  
+  cat("\nShapiro-Wilk's normality test for our model:\n")
+  print(shapiro.test(residuals(model)))
+  cat("\nDurbin-Watson's independence test for our model:\n\n")
+  print(car::durbinWatsonTest(model))
+}
+
+modelAnalysis <- function(model, test_data){
+  #Table for Train r^2, Test R^2, and RMSE
+  
+  train_r_2 <- summary(model)$adj.r.squared
+  
+  #Compute RMSE
+  pred_test <- predict(model, newdata = test_data)
+  RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+  
+  #Compute Test R^2
+  ss_res <- sum((test_data$expenditure - pred_test)^2)
+  ss_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+  test_r2 <- 1 - ss_res/ss_tot
+  test_r2
+  
+  #Create Table
+  model_values <- c(train_r_2, test_r2, RMSE)
+  
+  sum_table <- data.frame(model_values, row.names = c("Training R^2", "Test R^2", "RMSE"))
+  kable(sum_table)
+}
+
+##Load data
+set.seed(92394)
+
+data <- read_csv("credit_card_data.csv", show_col_types = FALSE)
+
+data <- data %>% filter(expenditure > 0)
+n <- nrow(data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- data[train_index, ]
+test_data  <- data[-train_index, ]
+```
+
+## Simplifying our model
+
+Income and share provide reciprocal information, so we do not need to include both of them. We will remove income, since share has a higher correlation. A partial F-test would state that we should keep income, but that is because the reciprocal information is causing the linear regression to produce invalid results. Removing income should make our residuals act more normal and produce a model that is more accurate to the true regression line, even if it reduces our adjusted $R^2$ and RMSE.
+
+```{r}
+model1 <- lm(expenditure ~ sqrt(share) * dependents + months + active, data = train_data)
+summary(model1)
+modelAnalysis(model1, test_data)
+```
+
+Now we will see if months is important to keep in our model, since it is showing as insignificant in our model summary output.
+
+```{r}
+model2 <- lm(expenditure ~ sqrt(share) * dependents + active, data = train_data)
+anova(model1, model2)
+```
+
+The parital F-test comparing the full model, model1, vs the reduced model, model2, reported a very high p-value of .9732. This means the difference in adding months as a predictor is not significant at all. We should exclude months and use the simpler model, model2.
+
+```{r}
+summary(model2)
+modelAnalysis(model2, test_data)
+```
+
+We can see in the model summary output that our adjusted $R^2$ actually went up slightly by excluding months. This confirms that months was just adding random noise to our model.
+
+## Residual and Assumption Review
+
+```{r, echo = FALSE}
+residAnalysis(model2)
+```
+
+Removing income and squaring share brought our residuals much closer to passing all assumptions. We can still see a slight pattern in our Residuals vs Fitted plot. Our Q-Q plot looks much better, besides deviations in the upper tail. Since we have already tried transformations on both expenditure and our response variables, our next option is to remove any outliers. We can do this for our data set because we want to predict expenditure for an average person using this credit card, not predict people who will spend more than the average person.
+
+To remove outliers, we will look at standarized residuals and remove any that are over 3 standard deviations from 0. From our Q-Q plot, we can see 3 highlighted observations that are over 5 standard deviations from 0. We will start be removing these and checking our model again.
+
+```{r}
+train_data <- train_data[-c(342, 322, 492),]
+model3 <- lm(expenditure ~ sqrt(share) * dependents + active, data = train_data)
+summary(model3)
+modelAnalysis(model3, test_data)
+```
+
+Our model performs slightly better now, with a training adjusted $R^2$ increasing to .7329, as well as the RMSE slightly reducing. Now we will see if the residual analysis improved as well.
+
+```{r, echo = FALSE}
+residAnalysis(model3)
+```
+
+The plots no longer have such extreme outliers, but the assumptions all still fail. This makes sense when looking back at our EDA. The bivariate relationships between expenditure and the predictor variables all contain heteroscedasticity. Creating a model without heteroscedasticity in the residuals is very unlikely when the data itself is full of it, especially if we want a model that is interpretative.
+
+## Prediction Accuracy
+
+```{r}
+modelAnalysis(model3, test_data)
+```
+
+This model performs better on the training data, with a slightly lower adjusted $R^2$ on the testing data. The RMSE, however, is still relatively low, showing that it is not completely useless in predicting expenditure. A test adjusted $R^2$ of .6774 and a RMSE of 139.306 shows that this model generalizes moderately well, with only slight instability between training and testing.
+
+## Model Reflection and Interpretation
+
+My final model is as follows:
+
+$E[expenditure] = -204.6722 + 1491.9818(\sqrt{share}) + -10.0464(dependents) + 2.9297(active) + 146.9072(\sqrt{share})(dependents)$
+
+The intercept is not useful, as a negative value for expenditure is not possible. Across all $B_1 \rightarrow B_4$, it is easy to see that $\sqrt{share}$ is the most important predictor variable. $B_1$ is much higher than all other predictors. The next highest is $B_4$, which is the interaction between $\sqrt{share}$ and dependents. Active was found to also have a small significant effect. Dependents on its own was not significant.
+
+The most important change to our model was dropping income since it added redundant information and made the least squares method "break". Removing income made our residuals closer to normality and made our model and beta coefficients easier to interpret. When trying out different combinations of transformations, higher-order terms, and predictor variables, I obtained models that were slightly closer to passing residual analysis. None passed, however. Because none of my models passed residual analysis, I decided to used a much simpler model that was much more interpretable and still reasonably close to passing our residual analysis. Using the complex models would've left me with a model that did not satisfy the residual assumptions and would be useless practically, since the data was so transformed.
+
+# Shreya's individual work
+
+---
+title: "Shreya Mohan Final Model"
+author: "Shreya Mohan"
+date: "2025-12-05"
+output: html_document
+---
+
+### Data Import
+
+```{r, echo = FALSE}
+library(MASS)
+library(lmtest)
+
+credit_data <- read.csv("credit_card_data.csv")
+head(credit_data)
+set.seed(862336550)
+n <- nrow(credit_data)
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+```
+
+### Week 8 Model:
+
+```{r}
+week8 <- lm(expenditure ~ income + sqrt(share) + dependents + months + active + share:dependents, data = train_data)
+summary(week8)
+
+res <- residuals(week8)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+plot(week8, which = 1)
+plot(week8, which = 2)
+dwtest(week8)
+```
+
+The model I had last week did not satisfy the assumption for residuals or normality. Although a lot of the predictors were significant we wanted to run an anova comparison to see if we could simplify our model while still making accurate predictions.
+
+### Data Cleaning
+
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+set.seed(862336550)
+credit_data <- subset(credit_data, dependents != 0)
+credit_data <- subset(credit_data, expenditure != 0)
+
+n <- nrow(credit_data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+
+train_data <- credit_data[train_index, ]
+
+test_data  <- credit_data[-train_index, ]
+nrow(credit_data)
+nrow(train_data)
+nrow(test_data)
+```
+
+Data cleaning was necessary as our data according to the data logs, dependents equals 1 + number of dependents. However, there is an error in the dataset in this case as we have observations where dependents = 0. Thus, we removed these observations for consistency. We also removed the observations where expenditure = 0 as these are meaningless for our predictions.
+
+### Step 1 — Simplify Your Expanded Model (Individual Work)
+
+#### Using the model you ended with last week (or your latest model) — which may include:
+
+Here I removed income from last weeks model. This is because income and share provide reciprocal information. The partial F test said we should keeo income, but this is because the reciprocal relationship is causing it to provide invalid results. We decided to keep share as it seemed more representative when predicting expenditure as it is the ratio of monthly credit card expenditure to yearly income.
+
+```{r}
+model1 <- lm(expenditure ~ sqrt(share) + dependents + months + active + sqrt(share):dependents, data = train_data)
+plot(model1, which = 1)
+dwtest(model1)
+
+model2 <- lm(expenditure ~ sqrt(share) + dependents + months + active, data = train_data)
+plot(model2, which = 1)
+dwtest(model2)
+
+anova(model1, model2)
+```
+
+The partial F test shows a very small p value for the comparison between the full model (with interaction) and the reduced model (without interaction). This means that the interaction share:dependents is highly significant and that we should proceed with the full model.
+
+```{r}
+model2 <- lm(expenditure ~ sqrt(share) + dependents + months + active + sqrt(share):dependents, data = train_data)
+
+model3 <- lm(expenditure ~ sqrt(share) + dependents + active + sqrt(share):dependents, data = train_data)
+dwtest(model3)
+
+plot(model3, which = 1)
+
+summary(model3)
+
+anova(model2, model3)
+```
+
+The partial F-test comparing the full model (including months) to the reduced model (excluding months) yields a large p-value, indicating that months is not a significant predictor. Therefore, we can proceed with the reduced model without months.
+
+```{r}
+model3 <- lm(expenditure ~ sqrt(share) + dependents + active + sqrt(share):dependents, data = train_data)
+
+model4 <- lm(expenditure ~ sqrt(share) + dependents + sqrt(share):dependents, data = train_data)
+dwtest(model4)
+
+plot(model4, which = 1)
+
+summary(model4)
+
+anova(model3, model4)
+```
+
+The partial F-test comparing the full model (including active) to the reduced model (excluding active) yields a large p-value, indicating that active is not a significant predictor. Therefore, we can proceed with the reduced model without active
+
+```{r}
+# Box-Cox transformation
+boxcox(model4, lambda = seq(-2, 2, 0.1)) 
+```
+
+After running a boxcox on model4, we can see that $\lambda \approx 0.4$ which is close to 0.5 so we apply a square root transformation to our response variable expenditure. Below I applied that on our final model. I also removed the extreme outliers from the Normal Q-Q plot.
+
+```{r}
+train_data <- train_data[-c(1189, 765, 295), ]
+final_model <- lm(sqrt(expenditure) ~ sqrt(share) + dependents + sqrt(share):dependents, data = train_data)
+summary(final_model)
+```
+
+### Step 2 — Residual & Assumption Review
+
+```{r}
+res <- residuals(final_model)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+
+plot(final_model, which = 1)
+plot(final_model, which = 2)
+dwtest(final_model)
+```
+
+Applying the square root transformation improved the residual vs. fitted plot and the Q-Q plot, reducing the appearance of heteroskedasticity and making the model diagnostics more reasonable, even if not perfect.
+
+This improvement is consistent with our EDA, which showed that the relationships between expenditure and the predictor variables exhibit heteroskedasticity. Given the variability in the data, it is unrealistic to expect a model with perfectly homoskedastic residuals while still maintaining interpretability.
+
+### Step 3 — Prediction Accuracy
+
+```{r}
+# Mean and SD of expenditure
+mean <- mean(credit_data$expenditure)
+sd   <- sd(credit_data$expenditure)
+
+cat("Mean of Expenditure:", mean, "\n")
+cat("SD of Expenditure:", sd, "\n\n")
+
+# Predictions on test set (sqrt scale)
+pred_test <- predict(final_model, newdata = test_data)
+
+# Test RMSE
+RMSE <- sqrt(mean((sqrt(test_data$expenditure) - pred_test)^2))
+cat("Test RMSE:", RMSE, "\n\n")
+
+# Training R^2 on sqrt scale
+train_r2 <- summary(final_model)$r.squared
+cat("Training R^2 (on sqrt scale):", train_r2, "\n")
+
+ss_res <- sum((sqrt(test_data$expenditure) - pred_test)^2)
+ss_tot <- sum((sqrt(test_data$expenditure) - mean(sqrt(test_data$expenditure)))^2)
+
+test_r2 <- 1 - ss_res/ss_tot
+cat("Testing R^2 (on sqrt scale):", test_r2, "\n")
+```
+
+The model generalizes reasonably well, with a test $R^2$ of 0.72, showing moderate predictive stability on new data. Though the high variability in expenditure, mean and standard deviation, the test RMSE of 4.34 indicates predictions are fairly close to observed values. The training $R^2$ of 0.84 and testing $R^2$ of 0.72 suggest that the model captures most of the variation in the data while maintaining reasonable performance on unseen observations.
+
+### Step 4 — Model Reflection & Interpretation
+
+The regression model predicting the square root of expenditure identified sqrt(share) and the interaction between sqrt(share) and dependents as the most important predictors. Both of these terms are highly significant, indicating that expenditure increases with share and that this effect is stronger for households with more dependents. The predictor dependents alone was not significant. Overall, the model explains a large portion of the variance with the training $R^2 = 0.84$ and testing $R^2 = 0.72$ and produces residuals that are roughly symmetric and unbiased, supporting the model assumptions.
+
+Modeling decisions that influenced performance included applying a square root transformation to the response variable to stabilize variance and including the interaction between sqrt(share) and dependents, which captured a meaningful relationship not reflected by the main effects alone. Non-informative predictors such as months and active were removed based on partial F-tests, improving model interpretability without sacrificing the fit. This approach balanced predictive accuracy with simplicity, resulting in a model that is both statistically robust and easy to interpret for understanding how share and household dependents drive expenditure.
+
+# Jenny's individual work
+
+```{r}
+
+library(car)
+library(MASS)       
+
+creditData <- read.csv("credit_card_data.csv")
+set.seed(862389455)
+rows <- nrow(creditData)
+trainNum <- sample(1:rows, size = 0.7 * rows)
+trainData <- creditData[trainNum, ]
+testData  <- creditData[-trainNum, ]
+```
+
+```{r, include=FALSE}
+
+# center points
+  trainData$sqrt_share     <- sqrt(trainData$share)
+  trainData$sqrt_months    <- sqrt(trainData$months)
+  trainData$log_months    <- log(trainData$months + 1)
+  trainData$log_income    <- log(trainData$income + 1)
+  trainData$log_active   <- log(trainData$active + 1)
+  trainData$log_dependents   <- log(trainData$dependents + 1)
+  trainData$log_share   <- log(trainData$share + 1)
+
+  
+  trainData$sqrt_share_c   <- trainData$sqrt_share - mean(trainData$sqrt_share)
+  trainData$sqrt_months_c  <- trainData$sqrt_months - mean(trainData$sqrt_months)
+  trainData$log_months_c    <- trainData$log_months - mean(trainData$log_months)
+  trainData$log_income_c    <- trainData$log_income - mean(trainData$log_income)
+  trainData$log_active_c    <- trainData$log_active - mean(trainData$log_active)
+  trainData$log_dependents_c    <- trainData$log_dependents - mean(trainData$log_dependents)
+  trainData$log_share_c    <- trainData$log_share - mean(trainData$log_share)
+
+  trainData$income_c     <- trainData$income - mean(trainData$income, na.rm = TRUE)
+  trainData$share_c      <- trainData$share - mean(trainData$share, na.rm = TRUE)
+  trainData$months_c     <- trainData$months - mean(trainData$months, na.rm = TRUE)
+  trainData$dependents_c <- trainData$dependents - mean(trainData$dependents, na.rm = TRUE)
+  trainData$active_c     <- trainData$active - mean(trainData$active, na.rm = TRUE)
+                                              
+
+mean_income      <- mean(trainData$income)
+mean_share       <- mean(trainData$share)
+mean_months      <- mean(trainData$months)
+mean_active      <- mean(trainData$active)
+mean_dependents  <- mean(trainData$dependents)
+
+testData$log_income     <- log(testData$income + 1)
+testData$log_dependents <- log(testData$dependents + 1)
+testData$log_active     <- log(testData$active + 1)
+testData$log_share      <- log(testData$share + 1)
+
+testData$sqrt_share     <- sqrt(testData$share)
+testData$sqrt_months    <- sqrt(testData$months)
+  
+testData$log_income_c      <- testData$log_income - mean(testData$log_dependents)
+testData$log_dependents_c  <- testData$log_dependents - mean(testData$log_income)
+
+testData$income_c          <- testData$income - mean_income
+testData$share_c           <- testData$share - mean_share
+testData$months_c          <- testData$months - mean_months
+testData$active_c          <- testData$active - mean_active
+testData$dependents_c      <- testData$dependents - mean_dependents
+testData$log_share_c     <- testData$log_share - mean(testData$log_share)
+testData$log_active_c     <- testData$log_active - mean(testData$log_active)
+```
+
+## Week 9
+
+## 1.
+
+Recap: We determined that the best model was the model from Week 8's step 4 with squared income, and an interaction variable between variables dependents and active.
+
+```{r}
+model2_poly_int_simplify <- lm(
+  expenditure ~ income_c + share_c + I(income_c^2) + active_c + dependents_c + dependents_c * active_c, data = trainData
+)
+summary(model2_poly_int_simplify)
+```
+
+Now we can check using F tests if any variables can be removed to simplify the model.
+
+```{r}
+model_no_quad <- lm(
+  expenditure ~ income_c + share_c + active_c +
+    dependents_c + dependents_c * active_c,
+  data = trainData
+)
+
+anova(model_no_quad, model2_poly_int_simplify)
+
+```
+
+The partial F-test comparing the full model to a reduced model without the quadratic income term showed that removing income squared did not significantly reduce model fit as F(1,916)=0.88,p=0.349. Because the quadratic component of income does not meaningfully improve prediction and is not statistically supported, we can remove the quadratic term for parsimony.
+
+To further simplify our model we can proceed to remove income as it is very similar to share, and out of the two share is slightly more informative and may be able to provide us with more insights into our model.
+
+```{r}
+model_no_quad <- lm(
+  expenditure ~ income_c+ share_c + active_c + dependents_c + dependents_c * active_c, data = trainData
+)
+
+summary(model_no_quad)
+
+```
+
+```{r}
+  pred_old <- predict(model_no_quad, newdata = trainData)
+  rmse_old <- sqrt(mean((trainData$expenditure - pred_old)^2, na.rm = TRUE))
+  rmse_old
+  
+  pred_old <- predict(model2_poly_int_simplify, newdata = trainData)
+  rmse_old <- sqrt(mean((trainData$expenditure - pred_old)^2, na.rm = TRUE))
+  rmse_old
+```
+
+Removing our quadratic term income squared did not change the performance of our model all that much, so taking it out manages to simplify the model while maintaining generally the same reliability.
+
+## 2.
+
+Now we proceed to check our residuals vs fitted model, QQ plot, etc.
+
+```{r}
+  model_final <- model_no_quad
+  
+  plot(model_final, which = 1, col = "orange")
+  
+  
+  plot(model_final, which = 2, col = "orange")
+  
+# checking if outliers shuld be removed
+  plot(model_final, which = 4, col = "orange")   
+  plot(model_final, which = 5, col = "orange")  
+  plot(model_final, which = 6, col = "orange") 
+```
+
+Our residuals vs fitted and QQ residuals plots have stayed relatively the same compared to our simplified model, which is a positive note. However, looking at our Cook's distance and Residuals vs Leverage plots, we can see that there are some points that may be described as highly influential. This should be looked into and removal of outliers should be considered.
+
+```{r}
+
+std_res <- rstandard(model_final)
+outliers <- order(std_res, decreasing = TRUE)[1:3]
+outliers
+
+trainData_no_out <- trainData[-outliers, ]
+
+
+# Refit the model
+model_final_no_out <- lm(
+  expenditure ~ income_c + share_c + active_c + dependents_c + dependents_c * active_c,
+  data = trainData_no_out
+)
+
+
+summary(model_final_no_out)
+
+
+# Residual vs fitted plot
+par(mar = c(4,4,2,1))
+plot(model_final_no_out, which = 2, col = "orange")
+plot(model_final_no_out, which = 1, col = "orange")
+
+ 
+  pred_out <- predict(model_final_no_out, newdata = trainData_no_out)
+  rmse_out <- sqrt(mean((trainData_no_out$expenditure - pred_out)^2, na.rm = TRUE))
+  rmse_out
+```
+
+Our RMSE and residuals have stayed relatively the same, but our adjusted R\^2 has showed very minimal, almost insignificant improvement.
+
+## 3.
+
+```{r}
+pred_test <- predict(model_final_no_out, newdata = testData)
+RMSE <- sqrt(mean((testData$expenditure - pred_test)^2))
+RMSE
+summary(model_final_no_out)$r.squared
+
+
+
+
+```
+
+The RMSE of our model has gone up by around 50%, but our adjusted R\^2 has stayed relatively the same, maintaining a generally reliable accuracy.
+
+## 4.
+
+The final regression model, expenditure \~ income_c + share_c + active_c + dependents_c + dependents_c \* active_c identifies income, insurance share, and the dependents × active interaction as the strongest predictors. Both income and insurance share show large, positive, and statistically significant effects. The interaction between dependents and active status remains significant, suggesting that the influence of dependents on expenditure depends on whether an individual is active.
+
+Modeling decisions that had the greatest influence included removing unneeded nonlinear terms, which still managed to keep the meaningful interactions. After removing a small number of extreme outliers identified in the Q–Q plot, predictive accuracy decreased (RMSE increased from 102.22 to 150.25), but overall fit remained effectively unchanged. This shows the balance between fit and interpretability as we wanted to keep a simple, interpretable model while keeping crucial components. Despite the increase in RMSE, the cleaned model can still provide a relatviely reliable representation
+
+# Lydia's individual work
+
+---
+title: "Lydia_ModelFinal"
+output: html_document
+date: "2025-12-08"
+---
+
+```{r echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+set.seed(7)
+```
+
+The professor outlined several key constraints for cleaning the data to ensure better model performance and interpretability.
+
+First, individual's income is too similar to their share of expenditure, the income variable should be deleted, as share is considered more informative for the analysis.
+
+Second, when examining expenditure against the logarithm of the month, the relationship should exhibit a curvilinear shape due to the data spanning a large range, suggesting that a non-linear model may be more appropriate for capturing this pattern. Third, remove the zero dependent.
+
+Here are the residual vs fitted plot and the qq plot from the model last week using the uncleaned data.
+
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+
+train_index <- sample(1:nrow(credit_data), size = 0.7 * nrow(credit_data))
+
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+full_model_old <- lm(expenditure ~ sqrt(share) + dependents + months + active, data = train_data)
+
+plot(full_model_old, which=1) # residuals vs fitted
+qqnorm(resid(full_model_old)); qqline(resid(full_model_old)) # normality
+```
+
+Let's put on contraints and see if the performance will turn out better
+
+```{r}
+credit_data <- subset(credit_data, dependents != 0)
+credit_data <- subset(credit_data, expenditure != 0)
+
+train_index <- sample(1:nrow(credit_data), size = 0.7 * nrow(credit_data))
+
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+full_model <- lm(expenditure ~ sqrt(share) + dependents + months + active, data = train_data)
+
+plot(full_model, which=1) # residuals vs fitted
+qqnorm(resid(full_model)); qqline(resid(full_model)) # normality
+
+pred_full <- predict(full_model, newdata = test_data)
+RMSE_full_baseline <- sqrt(mean((test_data$expenditure - pred_full)^2))
+RMSE_full_baseline  #287.0018
+```
+
+The application of the professor's constraints and the initial data cleaning procedures have resulted in a notable improvement in the model's diagnostic characteristics.
+
+Residuals vs. Fitted Plot: The trend line in this plot is noticeably flatter, indicating a better adherence to the assumption of linearity. However, a distinct pattern or structure still persists in the scatter of the residuals, suggesting that complete homoscedasticity (constant variance) has not yet been achieved.
+
+Normal Q-Q Plot: This plot shows fewer deviations, suggesting that the residuals are now closer to satisfying the assumption of normality.
+
+Overall, the data cleaning process was effective in moving the model closer to satisfying both the normality and constant variance assumptions. While this represents a significant improvement in model adequacy, further steps are required to fully resolve the remaining patterns and completely fulfill the assumptions of linear regression.
+
+### **Step 1 — Simplify Your Expanded Model (Individual Work)**
+
+To test which transformation term is necessary, we look at the RMSE, adjusted R\^2, and F-test result comparing to the original full model. I created 2 functions to generate a summary table of RMSE and adjusted R\^2 for full vs reduced model and print out the f-test result.
+
+```{r}
+# Function 1: Prints R^2 and RMSE comparison table
+print_comparison_table <- function(full_model, reduced_model, test_data) {
+  
+  adj_r2_full <- summary(full_model)$adj.r.squared
+  adj_r2_reduced <- summary(reduced_model)$adj.r.squared
+  
+  pred_full <- predict(full_model, newdata = test_data)
+  rmse_full <- sqrt(mean((test_data$expenditure - pred_full)^2))
+  
+  pred_reduced <- predict(reduced_model, newdata = test_data)
+  rmse_reduced <- sqrt(mean((test_data$expenditure - pred_reduced)^2))
+  
+  summary_table <- data.frame(
+    Model = c("Full Model", "Reduced Model"),
+    `Adj R^2 (Train)` = c(adj_r2_full, adj_r2_reduced),
+    `RMSE (Test)` = c(rmse_full, rmse_reduced),
+    check.names = FALSE
+  )
+  print(summary_table, row.names = FALSE)
+  
+  return(rmse_reduced)
+}
+```
+
+```{r}
+summary(full_model)
+```
+
+From the summary, we can see that the predictors months and active are not significant to the model, thus we test whether these terms are necessary first.
+
+1.  Test the Necessity of the months Term
+
+```{r}
+reduced_model_months <- lm(expenditure ~ sqrt(share) + dependents + active, data = train_data)
+anova(full_model, reduced_model_months)
+rmse_red_months <- print_comparison_table(full_model, reduced_model_months, test_data)
+```
+
+Analysis: p-value \> 0.05 suggests 'months' can be removed. The reduced model has a lower RMSE by about 0.2, which considered as insignificant. Conclusion: The term 'months' will be removed due to being insignificant to the full model.
+
+2.  Test the Necessity of the active Term
+
+```{r}
+reduced_model_active <- lm(expenditure ~ sqrt(share) + dependents + months, data = train_data)
+
+anova(full_model, reduced_model_active)
+
+rmse_red_active <- print_comparison_table(full_model, reduced_model_active, test_data)
+```
+
+Analysis: p-value \> 0.05 suggests 'active' can be removed. The reduced model has a lower RMSE by about 0.6, which considered as insignificant. Conclusion: The term 'active' will be removed due to being insignificant to the full model.
+
+Although we already know that dependents are significant to the model, we may double check.
+
+3.  Test the Necessity of the dependents Term
+
+```{r}
+reduced_model_dependents <- lm(expenditure ~ sqrt(share) + months + active, data = train_data)
+anova(full_model, reduced_model_dependents)
+rmse_red_dependents <- print_comparison_table(full_model, reduced_model_dependents, test_data)
+```
+
+Analysis: p-value \< 0.05 suggests 'dependents' can not be removed. The reduced model has a higher RMSE than the original model, however the partial f-test (anova) is a more formal statistically finding. Thus we do not remove 'dependents'. Conclusion: Keep the predictor dependents.
+
+Thus, the final model will be:
+
+```{r}
+final_model <- lm(expenditure ~ sqrt(share) + dependents, data = train_data)
+summary(final_model)
+```
+
+Compare the adjusted R\^2 of the full model from last week to the final model after simplified, we can see that the final model has a higher adjusted R\^2, indicates it captures more variance showing a better performance.
+
+```{r}
+cat("Full model adjusted R^2: \n")
+summary(full_model)$adj.r.squared
+cat("\nFinal model adjusted R^2: \n")
+summary(final_model)$adj.r.squared
+```
+
+### **Step 2 — Residual & Assumption Review (Individual)**
+
+check the residual diagnostics and assumption of the final model
+
+```{r}
+plot(final_model, which=1) # residuals vs fitted
+qqnorm(resid(final_model)); qqline(resid(final_model)) # normality
+res <- residuals(final_model)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+dwtest(final_model)
+plot(final_model, which = 3) # Scale-Location Plot (Checks homoscedasticity/constant variance)
+
+# Standardized Residuals and Outlier Detection
+# Create standardized residuals for the final model
+rstandard_final <- rstandard(final_model)
+```
+
+After cleaning the data and simplifying our transformed model, we observed improvements in model performance, but several key assumptions still remained unmet. The Residuals vs. Fitted plot still shows curvilinear patterns, suggesting lingering model misspecification, and the qq plot reveals deviation in the upper tail, indicating that normality is still violated. Because we have already explored transformations on both the response and predictors, the next logical step is to address potential outliers that may be contributing to these issues.
+
+We evaluate outliers using standardized residuals, removing observations that exceed +-2 standard deviations. The qq plot highlights a few observations with standardized residuals above 5, which strongly indicates extreme values that could be inducing heteroskedasticity and distorting model fit. We will remove these influential points and reassess the assumptions to determine whether model diagnostics improve.
+
+```{r}
+# Define the current best model on the current training data (use your actual best formula)
+current_model <- lm(expenditure ~ sqrt(share) + dependents, data = train_data)
+
+# Calculate the standardized residuals for the current model
+rstandard_current <- rstandard(current_model) 
+
+# Identify the row indices where the absolute standardized residual is greater than 3
+outlier_indices <- which(abs(rstandard_current) > 2)
+
+# Retrieve the original row names (identifiers) for these outliers
+outlier_row_names_to_remove <- row.names(train_data)[outlier_indices]
+
+cat("--- Identified Outliers (> 2 SD) ---\n")
+cat("Number of Outliers Found:", length(outlier_row_names_to_remove), "\n")
+cat("Original Row Names to Remove:\n")
+print(outlier_row_names_to_remove)
+
+# Remove the identified outliers from the train data
+# This creates a new, cleaned data set called train_data_cleaned
+train_data_cleaned <- train_data[!row.names(train_data) %in% outlier_row_names_to_remove, ]
+
+# Refit the model on the cleaned data
+# Use the same formula as before
+final_model_cleaned <- lm(expenditure ~ sqrt(share) + dependents + months + active, data = train_data_cleaned) 
+```
+
+```{r}
+# re-run the residual diagonstics
+plot(final_model_cleaned, which=1) # residuals vs fitted
+qqnorm(resid(final_model_cleaned)); qqline(resid(final_model_cleaned)) # normality
+res <- residuals(final_model_cleaned)
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     breaks = 30)
+dwtest(final_model_cleaned)
+plot(final_model_cleaned, which = 3) # Scale-Location Plot (Checks homoscedasticity/constant variance)
+
+# Standardized Residuals and Outlier Detection
+# Create standardized residuals for the final model
+rstandard_final <- rstandard(final_model_cleaned)
+```
+
+```{r}
+summary(final_model_cleaned)
+```
+
+The Residuals vs. Fitted plot shows noticeable improvement, residuals now display a wider spread rather than clustering tightly around the fitted values. This suggests reduced over-smoothing and a more realistic representation of variance. However, a faint funnel-shaped pattern remains, indicating potential heteroskedasticity that the model has not fully resolved.
+
+The Q–Q plot is also improved, but there are still clear deviations in the upper tail, which points to lingering departures from normality, likely driven by a few high-leverage observations.
+
+The histogram of residuals previously exhibited a tall spike at zero with strong right skewness. Now, the distribution is more balanced, with only mild right skew, suggesting progress toward symmetry but not complete normality.
+
+The Durbin–Watson test, with a p-value of 0.6299, indicates no evidence of autocorrelation, confirming that residuals are approximately independent.
+
+The Scale–Location plot shows increased variance across fitted values, which again confirms improvements but still hints at non-constant variance.
+
+Finally, the adjusted R\^2 shows 10% increase from the original model, from 0.6944 increased to 0.7903.
+
+Overall, the model still exhibits mild heteroskedasticity and imperfect normality, but the diagnostics show meaningful progress.
+
+### **Step 3 — Prediction Accuracy**
+
+```{r}
+#Compute RMSE
+pred_test <- predict(final_model_cleaned, newdata = test_data)
+RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+cat("RMSE: ", RMSE)
+
+#Compute Adj R^2
+train_r_2 <- summary(final_model_cleaned)$adj.r.squared
+cat("\ntraining R^2: ", train_r_2)
+#Compute Test R^2
+ss_res <- sum((test_data$expenditure - pred_test)^2)
+ss_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+test_r2 <- 1 - ss_res/ss_tot
+cat("\ntesting R^2: ", test_r2)
+```
+
+Although the model diagnostics improved after cleaning the data, simplifying transformations, and removing outliers, the model’s predictive performance worsened slightly, RMSE increased from 287 to 303 and the test R\^2 dropped to 0.437 compared with a training R\^2 of 0.79. This indicates that the refined model fits the training data more cleanly but generalizes less effectively, suggesting a trade-off between assumption compliance and predictive accuracy.
+
+### **Step 4 — Model Reflection & Interpretation**
+
+The final model shows that dependents and share are the most influential predictors of expenditure. Both demonstrate a positive and statistically significant relationship with the response, indicating that households with more dependents or a higher spending share tend to exhibit higher overall expenditure. These effects remained stable across multiple refinements, even as other predictors lost importance. The most impactful modeling decision was removing income, since income and share were highly collinear—share is effectively a nonlinear function of income—introducing redundancy and inflating variance in the model. A second major improvement came from applying a square-root transformation to share, which helped address the strong curvilinearity and reduced heteroskedasticity seen in the residual plots.
+
+Across cleaning, simplifying transformations, and removing outliers, each step produced visible improvements in model diagnostics, particularly after outlier removal, where the residual plots finally aligned more closely with linear regression assumptions. However, despite the cleaner residual structure, the test RMSE increased, and the test R² fell to 0.437 compared with a training R² of 0.79. This indicates that the final model, while assumption-compliant, may be over-simplified or still subject to some overfitting, ultimately limiting its predictive reliability. In balancing fit and interpretability, the model became easier to explain and diagnose, but this came at the cost of weaker generalization performance.

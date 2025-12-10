@@ -1,0 +1,182 @@
+---
+title: "Week 8 - Model Refining"
+author: "Kyle Riebeling"
+date: "2025-11-23"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align='center', fig.height=3.5, fig.width=10.5, warning = FALSE)
+
+options(scipen = 7)
+
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+
+residPlot <- function(model) {
+  ## Predicted vs Residuals (Linearity and Variance)
+pr_plot <- ggplot(data =model, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted", x = "Predicted values", y = "Residuals")
+
+## Residuals Histogram (Normality)
+r_hist <- ggplot(data = model, aes(x = .resid)) + geom_histogram(bins = 30, col = "black", fill = "grey") +
+  labs(title = "Histogram of Residuals", x = "Residuals")
+
+## QQ plot (Normality)
+qq_norm <- ggplot(data = model, aes(sample = .resid)) +
+  stat_qq() + stat_qq_line() +
+  labs(title = "Normal Q-Q Plot", x = "Theoretical Quantiles", y = "Sample Quantiles")
+
+grid.arrange(pr_plot, r_hist, qq_norm, ncol = 3)
+}
+```
+
+## Our Data and First Order Model
+
+```{r}
+set.seed(92394)
+data <- read_csv("credit_card_data.csv")
+n <- nrow(data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- data[train_index, ]
+test_data  <- data[-train_index, ]
+
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+```
+
+## Explore Curvature
+
+From our bivariate plots in our EDA, there appears to be no non-linear relationships between our response variables and expenditure. This means there will likely be no need for polynomial terms in our model.
+
+
+## Explore interactions
+
+### Dependents and Income
+
+I hypothesize that the effect income has on expenditure will change depending on dependents. 
+
+```{r}
+model3 <- lm(expenditure ~ income*dependents + share + months + active, data = train_data)
+summary(model3)
+```
+
+It was not significant, so we will not include it.
+
+### Dependents and Share
+
+I hypothesize that the effect share has on expenditure will change depending on dependents. 
+
+```{r}
+model4 <- lm(expenditure ~ income + share*dependents + months + active, data = train_data)
+summary(model4)
+```
+
+This interaction is significant and increases our adjusted $R^2$, so we will include it.
+
+
+### Months and Share
+
+```{r}
+model5 <- lm(expenditure ~ income + share*dependents + months*share + active, data = train_data)
+summary(model5)
+```
+This is not significant, so we won't include it.
+
+
+## Variable Screening
+
+We will take our best model so far, model 4, and remove any statistically insignificant variables, as well as any variables that account for a very small portion of the variability in expenditure. This means well remove active and months, since the coefficient for months is only -0.13434.
+
+```{r}
+model4 <- lm(expenditure ~ income + share*dependents, data = train_data)
+summary(model4)
+```
+
+We've removed 2 variables and our adjusted $R^2$ of our model only decreased 0.0014, so it is worth it to simplify the model this way.
+
+## Transformations
+
+```{r, echo=FALSE, fig.align='center', fig.height=3.5, fig.width=10.5, warning = FALSE}
+residPlot(model4)
+```
+
+Currently, this model is not adequate at all. It fails all assumptions, meaning all values given are reliable. We well need to transform our data or even reconsider the model we have entirely.
+
+
+Expenditure includes the value 0, so we cannot perform a boxcox transformation. We know from our EDA that all of our data is right skewed, so we should start by log transforming any continuous variables in our model.
+
+```{r}
+train_data$log_income <- log(train_data$income)
+train_data$log_share <- log(train_data$share)
+
+
+model5 <- lm(expenditure ~ log_income + log_share*dependents, data = train_data)
+summary(model5)
+residPlot(model5)
+```
+This greatly decreases our adjusted $R^2$ and still fails our residual analysis, so we will undo it and try transforming expenditure instead. We will use square root and log(y + 1) and compare results.
+
+
+
+```{r}
+model6 <- lm(sqrt(expenditure) ~ income + share*dependents, data = train_data)
+summary(model6)
+residPlot(model6)
+
+model7 <- lm(log(expenditure + 1) ~ income + share*dependents, data = train_data)
+summary(model7)
+residPlot(model7)
+```
+
+The square root transformation is the better transformation, since the adjusted $R^2$ remains at about .80. Both of these transformations still cause the residual analysis to fail, however.
+
+
+We have now tried including polynomial terms, interaction terms, and tried transforming all variables and still have a failing residual analysis. This indicates that either our model is still missing some important higher order term, or that our data is not suitable for linear regression.
+
+## Refined model
+
+To assess which model to continue with, we will compare the adjusted $R^2$ and RMSE for the best models we found in each section of the process. This will be model1, our first order model, model4, our interaction model, and model6, our sqrt(expenditure) model.
+
+```{r, echo = FALSE}
+pred_test <- predict(model1, newdata = test_data)
+RMSE_1 <- sqrt(mean((test_data$expenditure - pred_test)^2))
+
+pred_test <- predict(model4, newdata = test_data)
+RMSE_4 <- sqrt(mean((test_data$expenditure - pred_test)^2))
+
+pred_test <- predict(model6, newdata = test_data)
+RMSE_6 <- sqrt(mean((test_data$expenditure - pred_test)^2))
+
+model_1 <- c(summary(model1)$adj.r.squared, RMSE_1)
+model_4 <- c(summary(model4)$adj.r.squared, RMSE_4)
+model_6 <- c(summary(model6)$adj.r.squared, RMSE_6)
+
+model_table <- data.frame(model_1,model_4,model_6, row.names = c("Adjusted R^2", "RMSE"))
+
+kable(model_table)
+```
+
+Model 4 has the highest adjusted $R^2$ and the lowest RMSE, so it is a better model compared to our first order model. This means it was important to include the interaction between share and dependents. It also means that reducing our model did not impact performance. None of these models pass the residual analysis, however, so we will need to compare results across group members and consider the possibility that our data cannot be modeled using linear regression.
+
+
+
+
+
+
+```{r}
+# Compute Test R^2
+ss_res <- sum((test_data$expenditure - pred_test)^2)
+ss_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+
+test_r2 <- 1 - ss_res/ss_tot
+test_r2
+
+```
+
