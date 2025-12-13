@@ -1,0 +1,508 @@
+---
+title: "Week 7 - First Order Model"
+date: "2025-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(comment = "")
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(polycor)
+library(knitr)
+```
+
+## Our Data and First Order Model
+
+```{r}
+set.seed(92394)
+data <- read_csv("AER_credit_card_data.csv", show_col_types = FALSE)
+n <- nrow(data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- data[train_index, ]
+test_data  <- data[-train_index, ]
+
+train_data
+```
+
+Our response variable is expenditure. Our predictor variables, with justification for including them are:
+
+* income: moderately correlated to expenditure, so it will also be useful for modeling it
+* share: highly correlated to expenditure, so it will be useful for modeling it
+* dependents: the more dependents, the more expenses a person will likely have
+* months: stable living conditions indicate stable financial situations, which might lead to less credit card usage
+* active: the more credit accounts open, the less a person will likely spend on one specific card
+
+```{r}
+model <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model)
+```
+
+Across our individual models, we saw mostly stable results. Our adjusted $R^2$ was very close to .84 for 3 of our members, with one outlier result of .79. For all members, the intercept, income, and share were all highly significant with similar coefficient values, while active was insignificant. Months was significant for 3 of our members and dependents was significant for just 2. 
+
+This shows slight instability for specific variables, but our model overall is consistent. Below is a table summarizing of the results from our 4 models.
+
+```{r, echo=FALSE}
+Kyle_Model <- c(0.8334, 5, 46.04, 2434.55)
+Lydia_Model <- c(0.8395, 5, 41.35, 2375.97)
+Jenny_Model <- c(0.8406, 4,  51.06, 2323.32)
+Shreya_Model <- c(0.7962, 3, 53.54, 2536.71)
+
+sum_table <- data.frame(Kyle_Model,Lydia_Model,Jenny_Model,Shreya_Model, row.names = c("Adjusted R^2", "Number of Significant Predictors", "Beta_1", "Beta_2"))
+
+
+kable(sum_table)
+```
+
+
+## Checking for Multicollinearity
+
+```{r}
+car::vif(model)
+```
+
+The VIFs for all of our variables were close to 1 across all members, which indicates no multicollinearity. No changes were needed for our model, since there is no redundant information.
+
+## Residual Analysis
+
+```{r, echo=FALSE, fig.align='center', fig.height=5, fig.width=7.5, warning = FALSE}
+plot(model, which = 1, col = "orange")
+
+qqnorm(residuals(model), pch = 19, col = "plum3",
+       main = "Normal Q-Q Plot")
+qqline(residuals(model), col = "maroon", lwd = 2)
+
+hist(residuals(model),
+     breaks = 30,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     col = "lightblue",
+     border = "white")
+```
+
+```{r}
+shapiro.test(resid(model))
+car::dwt(model)
+```
+
+Across all members, the residual analysis produced similar results.
+
+There is a very clear pattern in the Residuals vs Fitted graph. It is a cone shape with a curving top. This tells us that the variance is not constant and there is a possibility of a non linear relationship.
+
+The histogram of the residuals seems to show a normal distribution that is right skewed with some outliers, but the Q-Q plot and Shapiro-Wilk test both show that the residuals are not normally distributed. The Q-Q plot shows significant deviations from the Q-Q line and the Shapiro Wilks test has a p-val < 0.05. This means our residuals do not follow a normal distribution.
+
+The Durbin-Watson test reports a p-val of > 0.05, so we can conclude that our data is not autocorrelated. 
+
+In summary, our model's residuals fail the normality, linearity, and constant variance assumptions. It passes the independence assumption, however. Our model will need a transformation, higher order terms, and/or the removal of outliers.
+
+## Model assessment comparison
+
+```{r, echo=FALSE}
+Jenny_Model <- c(0.841, 0.757 , 150.9 , "mild overfit")
+Shreya_Model <- c(0.7962, 0.848, 101.7, "little to no overfit")
+Kyle_Model <- c(0.8333962, 0.7705219,  146.8751, "mild overfit")
+Lydia_Model <- c(0.8403497, 0.7668395, 162.1057 , "mild overfit")
+
+sum_table <- data.frame(Kyle_Model,Lydia_Model,Jenny_Model,Shreya_Model, row.names = c("Train R^2", "Test R^2", "RMSE", "Comments"))
+
+
+kable(sum_table)
+```
+
+Shreya's model provides the strongest predictive performance, as it has the lowest RMSE of around 102 and a test R² of 0.848, showing that there is strong accuracy and less overfitting..
+Jenny, Kyle, and Lydia's models show mild overfitting, with all of them having slightly higher training R² and RMSE values, showing that they are less reliable in making preidictions compared to Shreya's model.We can summarize that Shreya's model is probably the best fit as it has both optimal accuracy and generalization.
+
+
+## Overall Group Findings
+
+Across our group members analysis, we found that our models were mostly stable and useful for predicting expenditure. All members found that share and income were highly significant, 3 members found months significant, and only 2 members found dependents significant. Because only some members found the variables months and dependents significant, we need further assessment on whether it is useful to keep them in our model. There was no significant redundancy found, since all VIFs were close to 1 across all members. While our residual analysis lead to a lot of violations, it was very consistent. This, again, shows that our model is stable.
+
+### Plan to refine the model next week
+
+The residual plot shows clear heteroscedasticity, with residual variance increasing at higher fitted values, and the Q–Q plot reveals strong deviations from normality, particularly heavy upper-tail residuals. 
+
+To address these issues, we will refine the model in several ways. 
+
+We will apply a log transformation to expenditure to stabilize variance and reduce right-skewness.
+
+We will introduce quadratic terms for income and share to capture potential nonlinear relationships suggested by the curvature in the residual patterns.
+
+We will test interaction effects:
+
+    a. income × share, since economic theory suggests that the effect of income on expenditure may depend on the proportion of income typically spent. 
+
+    b. income × dependents interaction, as households with more dependents may convert income into expenditure differently.
+
+In addition, variables such as dependents, months, and active, whose coefficients showed weak statistical significance, will be reevaluated during model refinement.
+
+
+
+## Appendix
+
+### Jenny Individual Work
+
+
+## 1.
+
+```{r}
+  creditData <- read.csv("AER_credit_card_data.csv")
+  head(creditData)
+  str(creditData)
+```
+
+```{r}
+set.seed(862389455)
+rows <- nrow(creditData)
+trainNum <- sample(1:rows, size = 0.7 * rows)
+trainData <- creditData[trainNum, ]
+testData  <- creditData[-trainNum, ]
+```
+
+## Week 7
+
+## 1.
+
+```{r}
+
+# fit using trainData 
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = trainData)  
+summary(model1)
+
+
+
+```
+
+## 2.
+
+```{r}
+  car::vif(model1)
+  
+```
+
+None of the variables with VIF are greater than 5 or 10 (all are under 2), meaning that there is no concern with them being redundant. Model does not need to be refined.
+
+## 3.
+
+```{r}
+plot(model1, which = 1, col = "orange")
+```
+
+```{r}
+plot(model1, which = 2, col = "orange")
+```
+
+The residuals vs fitted plot shows an obvious pattern/funnel shape showing that the linearity and constant variance assumptions may not be reasonable, and that we do not have a constant variance.
+
+The QQ plot suggests that the data is mostly normal as the data points generally follow the diagonal line, but tail ends of the plot deviate from the due to a slight curve, suggesting outliers.
+
+```{r}
+ hist(residuals(model1),
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     col = "orange",
+     breaks = 20)
+```
+
+The histogram suggests some outliers at the right tail end, but most of the data points are centered in the middle. Outliers may be subject to further investigation. This assumption may not hold to be true.
+
+Since assumptions are not met, possibly mainly due to outliers, further steps shoul be taken to remove such extreme values causing these deviations.
+
+## 4.
+
+```{r}
+  pred_test1 <- predict(model1, newdata = testData)
+  RMSE_test <- sqrt(mean((testData$expenditure - pred_test1)^2))
+  cat("test:", RMSE_test, "\n")
+  
+  pred_test2 <- predict(model1, newdata = trainData)
+  RMSE_train <- sqrt(mean((trainData$expenditure - pred_test2)^2))
+  cat("train:", RMSE_train, "\n")
+  
+  cat("R^2 training:", summary(model1)$r.squared)
+  SS_res <- sum((testData$expenditure - pred_test1)^2)
+  SS_tot <- sum((testData$expenditure - mean(testData$expenditure))^2)
+  R2_test <- 1 - (SS_res / SS_tot)
+  cat("\nR^2 testing:", R2_test)
+
+```
+
+Since our test RMSE is higher than our train RMSE, the model may be overfitting the data, but can still account for most of the unseen data and performs well for the most part.
+
+Since our R\^2 value is around 0.84, we can conclude that the model captures about 84% of the variation in credit card expenditure using our predictors.
+
+### Kyle Individual Work
+
+## Our Data and First Order Model
+
+```{r}
+set.seed(92394)
+data <- read_csv("AER_credit_card_data.csv", show_col_types = FALSE)
+n <- nrow(data)
+
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- data[train_index, ]
+test_data  <- data[-train_index, ]
+
+train_data
+```
+
+We will use the same 70/30% split from our EDA. Because we are keeping this split, our EDA can be applied to create our model. Our response variable is expenditure. Our predictor variables, with justification for including them are:
+
+* income: moderately correlated to expenditure, so it will also be useful for modeling it
+* share: highly correlated to expenditure, so it will be useful for modeling it
+* dependents: the more dependents, the more expenses a person will likely have
+* months: stable living conditions indicate stable financial situations, which might lead to less credit card usage
+* active: the more credit accounts open, the less a person will likely spend on one specific card
+
+```{r}
+model <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model)
+```
+
+## Checking for Multicollinearity
+
+```{r}
+car::vif(model)
+```
+
+The VIFs for all of our variables are close to 1, which indicates no multicollinearity. We will continue to use this model, since there is no redundant information.
+
+## Residual Analysis
+
+```{r, echo=FALSE, fig.align='center', fig.height=3.5, fig.width=10.5, warning = FALSE}
+## Predicted vs Residuals (Linearity and Variance)
+pr_plot <- ggplot(data =model, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted", x = "Predicted values", y = "Residuals")
+
+## Residuals Histogram (Normality)
+r_hist <- ggplot(data = model, aes(x = .resid)) + geom_histogram(bins = 30, col = "black", fill = "grey") +
+  labs(title = "Histogram of Residuals", x = "Residuals")
+
+## QQ plot (Normality)
+qq_norm <- ggplot(data = model, aes(sample = .resid)) +
+  stat_qq() + stat_qq_line() +
+  labs(title = "Normal Q-Q Plot", x = "Theoretical Quantiles", y = "Sample Quantiles")
+
+grid.arrange(pr_plot, r_hist, qq_norm, ncol = 3)
+```
+
+```{r}
+shapiro.test(resid(model))
+car::dwt(model)
+```
+
+There is a very clear pattern in the Residuals vs Fitted graph. It is a cone shape with a curving top. This tells us that the variance is not constant and there is a possibility of a non linear relationship.
+
+The histogram of the residuals seems to show a normal distribution with some outliers, but the Q-Q plot and Shapiro-Wilk test both show that the residuals are not normally distributed. The Q-Q plot shows significant deviations from the Q-Q line and the Shapiro Wilks test has a p-val < 0.05. This means our residuals do not follow a normal distribution.
+
+The Durbin-Watson test reports a p-val of > 0.05, so we can conclude that our data is not autocorrelated. 
+
+In summary, our model's residuals fail the normality, linearity, and constant variance assumptions. It passes the independence assumption, however. Our model will need a transformation, higher order terms, and/or the removal of outliers.
+
+## Model Assessment with Testing Data
+
+```{r}
+pred_test <- predict(model, newdata = test_data)
+RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+
+SS_res <- sum((test_data$expenditure - pred_test)^2)
+SS_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+R2_test <- 1 - (SS_res / SS_tot)
+
+cat("Adjusted R^2 of training: ", summary(model)$adj.r.squared,
+    "\nAdjusted R^2 of testing: ", R2_test,
+    "\n\nRMSE: ", RMSE,
+    "\n\nMean of Y (expenditure): ", mean(data$expenditure, na.rm = TRUE),
+    "\nSD of Y (expenditure): ", sd(data$expenditure, na.rm = TRUE) , sep = "")
+
+
+```
+
+Our model has an $R^2$ of about .8334 which means 83.34% of the variability in expenditure can be explained by our model. RMSE from our test data is 145.8751, which is almost half of the standard deviation, $\sigma$, of expenditure. It is also moderately smaller than the mean of expenditure. Since $R^2$ is high and our RMSE is relatively low compared to $\sigma(y)$ and $\bar{y}$, we can conclude that this model is a good model with no signs of overfitting and underfitting. 
+
+
+### Lydia Individual Work
+
+
+```{r}
+library(car)
+credit_data <- read.csv("AER_credit_card_data.csv")
+
+set.seed(7)
+train_index <- sample(1:nrow(credit_data), size = nrow(credit_data) * 0.7)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+head(train_data) #923 rows
+head(test_data) #396 rows
+```
+
+#### Model
+
+```{r}
+# Fit a linear regression model with multiple predictors, use the traning data
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+```
+
+#### Check Multicollinearity
+
+```{r}
+# check the VIF
+car::vif(model1)
+```
+
+none of the predictors have the VIF greater than 5, indicates there are no multicollinearity exist. We are allowed to keep using this model with the predictors we chose.
+
+#### Residual analysis
+
+```{r}
+# Extract residuals and fitted values
+residuals_m1 <- residuals(model1)
+fitted_m1 <- fitted(model1)
+
+# 1. Residual vs Fitted Plot
+plot(fitted_m1, residuals_m1,
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted Values")
+abline(h = 0, col = "red", lwd = 2)
+
+# 2. Normal Q-Q Plot
+qqnorm(residuals_m1,
+       main = "Normal Q-Q Plot of Residuals")
+qqline(residuals_m1, col = "red", lwd = 2)
+
+# 3. Histogram of Residuals
+hist(residuals_m1,
+     breaks = 30,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     col = "lightblue",
+     border = "white")
+
+# 4. Check for Outliers & Influential Points
+# Outlier test
+outlierTest(model1)
+```
+
+#### RMSE and R\^2
+
+```{r}
+pred_test <- predict(model1, newdata = test_data)
+RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2))
+cat("The testing RMSE is: ", RMSE, "\n")
+
+cat("The adjusted R^2 of Lydia's model is: ", summary(model1)$adj.r.squared, "\n")
+cat("The R^2 of Lydia's training model is: ", summary(model1)$r.squared)
+SS_res <- sum((test_data$expenditure - pred_test)^2)
+SS_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+R2_test <- 1 - (SS_res / SS_tot)
+cat("\nThe R^2 of Lydia's testing model is: ", R2_test)
+```
+
+overfitting: adj r\^2 lower than the normal R. much larger validation error underfitting: r low, r = adj r, nothing is explained/captured by the predictors
+
+**Analysis:** Based on the results, the model does not show strong signs of overfitting or underfitting, but a sign of slightly overfitting. The adjusted R² (0.839) and R² (0.840) are almost identical, which means the included predictors are contributing meaningful explanatory power and the model isn’t being artificially inflated by unnecessary variables.
+
+
+### Shreya Individual Work
+
+### Data Import
+```{r, echo = FALSE}
+credit_data <- read.csv("AER_credit_card_data.csv")
+head(credit_data)
+set.seed(862336550)
+n <- nrow(credit_data)
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+
+credit_data$card        <- as.factor(credit_data$card)
+credit_data$reports     <- as.numeric(credit_data$reports)
+credit_data$age         <- as.numeric(credit_data$age)
+credit_data$income      <- as.numeric(credit_data$income)
+credit_data$share       <- as.numeric(credit_data$share)
+credit_data$expenditure <- as.numeric(credit_data$expenditure)
+credit_data$owner       <- as.factor(credit_data$owner)
+credit_data$selfemp     <- as.factor(credit_data$selfemp)
+credit_data$dependents  <- as.numeric(credit_data$dependents)
+hc <- hetcor(credit_data)
+hc$correlations
+```
+
+### Step 1 – Model Specification
+
+```{r}
+model1 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model1)
+```
+
+Thw predictors income, share, dependents, months, active were chosen for the model. These were picked due to their correlation coefficients being the highest 5 out of all the variables when compared to expenditure. This also resulted in the highest adjusted r squared value. Self-employed was removed from the choice of predictors due to the very low percentage of those who aren't self employed which may have skewed the model. 
+
+### Step 2 – Check Multicollinearity
+**Compute the correlation matrix and Variance Inflation Factors (VIF) for predictors. Identify any variables with VIF > 5 (potential concern) or >10 (serious concern).**
+```{r}
+car::vif(model1)
+```
+
+All predictors in Model 1 have low VIF values, all are less than 5, indicating no multicollinearity and that each variable contributes unique information about expenditure. The strongest predictors, share and income, are highly correlated with expenditure, while dependents, months, and active provide additional information without added redundancy. Therefore, all chosen variables are justified based on their correlation with the response and the multicollinearity analysis.
+
+```{r}
+model2 <- lm(expenditure ~ income + share + dependents + months + active, data = train_data)
+summary(model2)
+```
+
+### Step 3 – Residual Analysis
+**Evaluate model 2 assumptions using residual plots and summary diagnostics:**
+```{r}
+# Residuals
+res <- residuals(model2)
+fit <- fitted(model2)
+
+# 1. Residuals vs Fitted Plot
+plot(fit, res,
+     main = "Residuals vs Fitted",
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     pch = 19, col = "plum3")
+abline(h = 0, col = "maroon", lwd = 2)
+
+# 2. Normal Q-Q Plot
+qqnorm(res, pch = 19, col = "plum3",
+       main = "Normal Q-Q Plot")
+qqline(res, col = "maroon", lwd = 2)
+
+# 3. Histogram of Residuals
+hist(res,
+     main = "Histogram of Residuals",
+     xlab = "Residuals",
+     col = "maroon",
+     border = "black")
+
+outlierTest(model1)
+```
+
+The Residuals vs Fitted plot shows a clear funnel pattern, with residuals spreading out as fitted values increase. This indicates heteroscedasticity, meaning the variance of the errors is not constant. The Normal Q–Q plot shows strong curvature, with several points deviating from the line, which suggests non-normal residuals and the presence of outliers. These imply that the model residuals are not normally distributed and the constant-variance assumption is not satisfied. Overall, the assumptions are violated, and a transformation or removal of extreme outliers may improve model performance.
+
+### Step 4 – Model Assessment with Testing Data
+**Use your test_data to evaluate model predictive accuracy: Compute predicted values and residuals on the test set.**
+
+```{r}
+mean(credit_data$expenditure, na.rm = TRUE)
+sd(credit_data$expenditure)
+pred_test <- predict(model2, newdata = test_data)
+RMSE <- sqrt(mean((test_data$expenditure - pred_test)^2,na.rm=T))
+RMSE
+SS_res <- sum((test_data$expenditure - pred_test)^2)
+SS_tot <- sum((test_data$expenditure - mean(test_data$expenditure))^2)
+R2_test <- 1 - (SS_res / SS_tot)
+R2_test
+```
+
+The model has a training $R^2$ of 0.7962, meaning it explains about 79.62% of the variance in expenditure, which is quite high. The test RMSE is approximately 101.7, which is much lower than the standard deviation of expenditure, 272, indicates that predictions on new data are reasonably accurate. Because the model performs well on both the training and test data, with no large increase in error or drastic drop in explained variance, there are no signs of overfitting or underfitting, and the model generalizes well.

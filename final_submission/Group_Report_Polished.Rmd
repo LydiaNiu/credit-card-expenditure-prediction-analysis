@@ -1,0 +1,232 @@
+---
+title: "Group 4 Report Polished"
+author: "Group Members: Shreya (LEAD), Kyle, Jenny, Lydia"
+date: "2025-11-10"
+output: html_document
+---
+s
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(GGally)
+library(corrplot)
+```
+
+### **Step 1-Data Import and Random Split**
+```{r}
+credit_data <- read.csv("credit_card_data.csv")
+head(credit_data)
+str(credit_data)
+
+set.seed(862336550)
+n <- nrow(credit_data)
+train_index <- sample(1:n, size = 0.7 * n)
+train_data <- credit_data[train_index, ]
+test_data  <- credit_data[-train_index, ]
+colSums(is.na(train_data))
+```
+
+### **Step 2 – Data Description**
+#### Dataset Source and Context
+
+The dataset is from [Kaggle Credit Card Data](https://www.kaggle.com/datasets/dansbecker/aer-credit-card-data?resource=download).\
+It contains information on individuals’ credit card spending habits and demographics, including age, monthly expenditure, income, number of active credit cards, and more.
+
+#### Variables, Types, and Units
+
+-   **`card`**: Dummy variable, 1 if application for credit card is accepted, 0 otherwise (character)\
+-   **`reports`**: Number of major derogatory reports (integer)\
+-   **`age`**: Age in years plus twelfths of a year (double)\
+-   **`income`**: Yearly income divided by 10,000 (double)\
+-   **`share`**: Ratio of monthly credit card expenditure to yearly income (double)\
+-   **`expenditure`**: Average monthly credit card expenditure (double)\
+-   **`owner`**: Yes if owns home, No if rents (character)\
+-   **`selfemp`**: Yes if self-employed, No otherwise (character)\
+-   **`dependents`**: 1 + number of dependents (integer)\
+-   **`months`**: Number of months living at current address (integer)\
+-   **`majorcards`**: Number of major credit cards held (integer)\
+-   **`active`**: Number of active credit accounts (integer)
+
+#### Response Variable and Candidate Predictors
+
+-   **Response Variable (`Y`)**:
+    -   `expenditure` – Average monthly credit card expenditure (continuous)
+-   **Candidate Predictors (`X₁, X₂, …`)**:
+    -   `reports`, `age`, `income`, `share`, `owner`, `selfemp`, `dependents`, `months`, `majorcards`, `active`
+
+#### Sample size (after split)
+```{r, echo = FALSE}
+cat("Total number of observations in the full dataset:", n, "\n")
+cat("Number of observations in training data:", nrow(train_data), "\n")
+cat("Number of observations in testing data:", nrow(test_data), "\n")
+```
+
+### **Step 3- Descriptive Statistics**
+
+#### Numeric variables: mean, median, SD, quartiles, min, max.
+
+```{r, echo=FALSE}
+summary(credit_data[, c("reports", "age", "income", "share", "expenditure", "active", "dependents", "months", "majorcards")])
+```
+#### Categorical variables: frequency and percentage tables. 
+
+**Card:**
+```{r, echo = FALSE}
+cat("Frequency:\n")
+table(train_data$card)
+cat("\nProbability:\n")
+round(prop.table(table(train_data$card)) * 100, digits = 2)
+```
+**Owner:**
+```{r, echo = FALSE}
+cat("Frequency:\n")
+table(train_data$owner)
+cat("\nProbability:\n")
+round(prop.table(table(train_data$owner)) * 100, digits = 2)
+```
+
+**Selfemp:** 
+```{r, echo = FALSE}
+cat("Frequency:\n")
+table(train_data$selfemp)
+cat("\nProbability:\n")
+round(prop.table(table(train_data$selfemp)) * 100, digits = 2)
+```
+**Majorcards:**
+```{r, echo = FALSE}
+cat("Frequency:\n")
+table(train_data$majorcards)
+cat("\nProbability:\n")
+round(prop.table(table(train_data$majorcards)) * 100, digits = 2)
+```
+
+The average age of a person in this data set is 33 years old with a median of 31. This is slightly right skewed. Almost all of the numeric variables have a right skewed distribution, indicating that while most applicants have low values, a few outliers spend significantly more or have more accounts. About 78% of applicants were approved for a credit card, and slightly more than half do not own a home. Very few people in this dataset are self-employed. 
+
+### **Step 4 - Visual Exploration**
+#### Univariate plots:
+```{r, echo=FALSE}
+numeric_vars <- c("reports", "age", "income", "share", "expenditure", "dependents", "months", "majorcards", "active")
+
+#Histograms for Numeric Variables 
+par(mfrow=c(3,3))
+for (var in numeric_vars) {
+  hist(train_data[[var]], main=paste("Histogram of", var), xlab=var, col="skyblue")
+}
+par(mfrow=c(1,3))
+
+```
+
+The numeric variables show noticeable skewness and variability. Most variables, such as reports, share, expenditure, months, and active, are right-skewed, indicating that most applicants have low values with a few high-value outliers. Age and income are more balanced but still slightly right-skewed, suggesting that the dataset primarily represents younger applicants with moderate income levels. Dependents cluster around 0–2, implying that most applicants have few dependents, and majorcards is concentrated around 1, meaning most individuals already possess one major credit card. Outliers are visible in expenditure, months, and active, where a small number of individuals report unusually high values.
+
+```{r, echo = FALSE}
+par(mfrow = c(1, 3))
+#Bar Charts for Categorical Variables
+barplot(table(train_data$card), main="Credit Card Acceptance", col="lightblue")
+barplot(table(train_data$owner), main="Home Ownership", col="lightgreen")
+barplot(table(train_data$selfemp), main="Self Employment", col="lightcoral")
+```
+
+For the categorical variables, the data shows that approximately 78% of applicants were approved for a credit card, making the dataset imbalanced toward approvals. Around 56% rent their homes while 44% own, suggesting home ownership could influence approval likelihood. Only about 7% of applicants are self-employed, indicating this category represents a small portion of the dataset and may have limited statistical impact.
+
+```{r, echo=FALSE}
+par(mfrow = c(1, 3))
+#Boxplot of Expenditure
+boxplot(train_data$expenditure, main="Boxplot of Expenditure", ylab="Expenditure", col="lightblue")
+
+boxplot(expenditure ~ owner, data=train_data, main="Expenditure by Home Ownership", col=c("lightgreen","lightblue"))
+boxplot(expenditure ~ selfemp, data=train_data, main="Expenditure by Self-Employment", col=c("pink","lightgrey"))
+```
+
+The boxplots show that expenditure has a right-skewed distribution with several high-value outliers across all groups. Homeowners tend to have higher median expenditure than non-owners, while self-employed individuals generally have lower median expenditure compared to those who are not self-employed.
+
+#### Bivariate plots:
+```{r, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+pairs(train_data[, numeric_vars], main="Scatterplot Matrix", col = "midnightblue", pch = 16, cex = 0.5)
+```
+
+```{r, echo=FALSE}
+
+#Plot of Expenditure Vs Income
+plot(train_data$income, train_data$expenditure,
+     xlab = "Income (×10,000)",
+     ylab = "Monthly Expenditure",
+     main = "Expenditure vs. Income",
+     pch = 19, col = "steelblue")
+abline(lm(expenditure ~ income, data=train_data), col="red", lwd=2)
+
+#Plot of Expenditure Vs Share
+plot(train_data$share, train_data$expenditure,
+     xlab = "Share",
+     ylab = "Monthly Expenditure",
+     main = "Expenditure vs. Share",
+     pch = 19, col = "darkgreen")
+abline(lm(expenditure ~ share, data=train_data), col="red", lwd=2)
+
+#Plot of Expenditure Vs Report
+plot(train_data$reports, train_data$expenditure,
+     xlab = "Number of Major Derogatory Reports",
+     ylab = "Monthly Expenditure",
+     main = "Expenditure vs. Reports",
+     col = "skyblue", pch = 19)
+abline(lm(expenditure ~ reports, data=train_data), col="red", lwd=2)
+```
+```{r, echo=FALSE}
+my_colors <- colorRampPalette(c("mistyrose", "plum", "plum4"))(200)
+
+#Heatmap for correlation
+corrplot(cor(train_data[, numeric_vars]), method = "color", tl.cex = 0.8, col = my_colors)
+```
+
+
+The bivariate relationships reveal meaningful patterns such as share and expenditure have a strong positive relationship. While we expected expenditure and income to have a high positive correlation the scatterplot shows almost no relationship between the two variables. In contrast, reports tends to be negatively related to financial activity variables like income, expenditure, and share, implying that individuals with more derogatory reports generally have lower income and spending levels.
+
+#### Pairwise relationships:
+```{r, echo=FALSE, fig.align='center', fig.height=7, fig.width=7}
+ggpairs(train_data[,c("expenditure", "months", "active", "share", "income", "age")], progress = FALSE)
+```
+
+The correlation matrix shows that most variables are weakly correlated, with the exception of share and expenditure, which are strongly positively correlated with r = 0.83. Moderate correlations exist between age and months r = 0.42 and income and dependents r = 0.35, suggesting limited multicollinearity
+
+### **Step 5- Group Comparison and Synthesis**
+Our findings across all group members were generally consistent, even though the data was split different for each member. For the most part, all members could conclude that the relationships between the variables were moderately strong, with the strongest being between that one the variables share and expenditure with an r value of 0.83. Other variables we see follow patterns that can be intuitively understood, such as income and age. Relationships that were expected to be correlated, such as expenditure and income’s correlation did not come out the be as strong as expected as the scatterplots created by group members did not show the expected relationship. The different reports provided a cohesive summary of the data and its variables. 
+
+### **Step 6 - Key Insights**
+#### What patterns or relationships you discovered:
+1) A strong positive correlation exists between expenditure and share (r = 0.826), indicating that individuals who spend a larger proportion of their income on credit card expenses also tend to have higher absolute expenditures.
+2) There is a moderate positive correlation between age and income (r = 0.39), suggesting that older individuals in the dataset generally have higher income levels.
+3) The number of derogatory reports shows a negative relationship with both income and expenditure, implying that applicants with poor credit history tend to earn and spend less.
+4) The categorical variable owner, homeowners, appears to have a potential link with expenditure, suggesting that homeowners may exhibit higher spending levels than renters.
+5) Very few individuals in this dataset are self-employed, around 6.9%, indicating that self-employment may not be a strong or generalizable predictor in subsequent analyses. 
+
+#### Any data issues (outliers, skewness):
+1) Most numeric variables are right-skewed, meaning most applicants have low-to-moderate values, with a few extreme high spenders or earners.
+2) Several variables especially expenditure, share, and months, contain extreme high outliers that could influence regression models. 
+3) The response variable selfemp has very few “Yes” responses, limiting its statistical influence.
+4) High correlation between income and share suggests potential redundancy among predictors.
+
+#### Early ideas for variable selection or transformations:
+**Possible Significant Predictors for Expenditure**
+Referencing the scatterplot matrix and the associated correlation values, the best continuous numerical predictors will be share and age. They are the only continuous numerical predictors with moderate to high correlations to expenditure. All other numerical variables had correlation values close to 0. For discrete numerical and categorical variables, there appears to be a relationship between expenditure and reports.
+
+**Possible Transformations**
+Through our EDA, we learned that most of our data is right skewed. While this is not directly a problem, it increases the chances that our model residuals will not follow a normal distribution or have equal variance. If that ends up being the case, we will likely need to try a $\log x$ or $\sqrt x$ transform on our data.
+
+### **Step 7 - ChatGPT Prompt Integration**
+
+**prompt 1:** "Based on our EDA results, some numeric variables contain extreme outliers. What methods can be used to detect these outliers, and how should they be handled in the analysis?"
+
+**response 1:** "Outliers in numeric data can be detected using statistical methods such as the IQR (Interquartile Range) rule, Z-scores, or boxplots. In the IQR method, any value below Q1 – 1.5 × IQR or above Q3 + 1.5 × IQR is considered a potential outlier. Z-scores greater than ±3 can also indicate extreme points. Once detected, outliers can be handled by removing, capping (winsorizing), or transforming the data, depending on the context and influence on model performance. If the outliers reflect genuine extreme behavior rather than data entry errors, it’s often better to keep them but consider using robust models that are less sensitive to them (e.g., median-based or tree-based methods)."
+
+**reflection 1:** We made boxplots to go along with ChatGPT's guidance to see the outliers. The boxplots helped us clearly identify these outliers and we will plan to address them in our models. 
+
+**prompt 2:** "Many variables in our dataset show a right-skewed distribution. What does this indicate about the data, and what techniques can be applied to address this skewness?"
+
+**response 2:** "When variables are right-skewed, it means most values are low, with a long tail on the higher end. Such skewness can distort statistical modeling and reduce predictive accuracy. To address this, you can apply data transformations like the log, square root, or Box–Cox transformation to make distributions more symmetric. Alternatively, for models sensitive to distributional assumptions (e.g., linear regression), transforming the data helps meet normality assumptions, while for models like decision trees, skewness is less critical and may be left as is."
+
+**reflection 2:** ChatGPT's repsonse helped us interpret our data. Since almost all of our variables were right skewed we used what it told us to analyze that many of our data points our low with a few extreme high values. This also helped us understand that we needed to transform our data. 
+
+### Appendix
+All individual RMD and HTML files are included in the submitted .zip file along with the group polished report 
+
